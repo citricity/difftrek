@@ -266,8 +266,14 @@ export function App() {
       labelOf,
       describe: changelog.describe,
       onOpenHunk: (hunkId: string) => setNoteDialog({ kind: 'hunk', hunkId }),
-      onOpenChange: (changeId: string, hunkId?: string) =>
-        setNoteDialog({ kind: 'change', changeId, from: hunkId }),
+      // A badge names one change, and the reader has just said which: it
+      // becomes the bar's current change, so a hunk serving two intents shows
+      // the one clicked rather than the first. The cursor is left where it is
+      // — the reader is looking at the code, and moving it would scroll.
+      onOpenChange: (changeId: string) => {
+        setRequestedChange(changeId);
+        setNoteDialog({ kind: 'change', changeId });
+      },
     };
   }, [changelog, labelOf]);
 
@@ -293,48 +299,49 @@ export function App() {
   const currentChange =
     focused ?? stepped ?? changeOfHunk(notedHunks, currentHunk);
 
-/**
-   * The hunks of the open change: both what its dialog lists and what its
-   * arrows walk. One list, so what the reader can see is exactly what the next
-   * press will do.
+  /**
+   * The hunks of the change in view, and which of them the reader is on: what
+   * the bar's right-hand arrows walk. They stop at either end of the change —
+   * moving on to the next change is what the arrows beside the badge are for.
    */
-  const dialogHunks = useMemo(
+  const changeHunks = useMemo(
     () =>
-      noteDialog?.kind === 'change'
-        ? hunksOfChange(notedOrder, notedHunks, noteDialog.changeId)
-        : [],
-    [noteDialog, notedOrder, notedHunks],
+      currentChange === null
+        ? []
+        : hunksOfChange(notedOrder, notedHunks, currentChange),
+    [currentChange, notedOrder, notedHunks],
   );
 
-  /**
-   * Which of them the reader is on: the hunk under the cursor when the dialog
-   * opened, and after that whichever the arrows last moved to. Carried by the
-   * dialog rather than beside it, so it cannot outlive the change it counts
-   * through.
-   */
-  const dialogHunk =
-    noteDialog?.kind === 'change' && noteDialog.at !== undefined
-      ? noteDialog.at
-      : dialogHunks.indexOf(
-          (noteDialog?.kind === 'change' ? noteDialog.from : null) ??
-            currentHunk ??
-            '',
-        );
+  const changeHunk = currentHunk === null ? -1 : changeHunks.indexOf(currentHunk);
 
-  const stepHunk = useCallback(
+  const stepHunkInChange = useCallback(
     (delta: 1 | -1) => {
-      if (noteDialog?.kind !== 'change') return;
+      if (currentChange === null) return;
 
-      const next = dialogHunk + delta;
-      const target = dialogHunks[next];
+      // Off the change's hunks altogether (only possible while focused, when
+      // the reader has clicked elsewhere): forward starts the change again.
+      const target =
+        changeHunk === -1
+          ? delta === 1
+            ? changeHunks[0]
+            : undefined
+          : changeHunks[changeHunk + delta];
       if (target === undefined) return;
 
       revealHunk(target);
-      setRequestedChange(noteDialog.changeId);
-      setNoteDialog({ kind: 'change', changeId: noteDialog.changeId, at: next });
+      setRequestedChange(currentChange);
     },
-    [dialogHunk, dialogHunks, noteDialog, revealHunk],
+    [changeHunk, changeHunks, currentChange, revealHunk],
   );
+
+  const nextHunkInChange = useCallback(() => stepHunkInChange(1), [stepHunkInChange]);
+  const previousHunkInChange = useCallback(
+    () => stepHunkInChange(-1),
+    [stepHunkInChange],
+  );
+  const canGoNextHunk = changeHunks.length > 0 && changeHunk < changeHunks.length - 1;
+  const canGoPreviousHunk = changeHunk > 0;
+
   const changePosition = changes.findIndex((entry) => entry.id === currentChange);
 
   const nextChange = stepChange(
@@ -383,6 +390,8 @@ export function App() {
     onPrevious: navigation.goPrevious,
     onNextChange: changes.length === 0 ? undefined : goToNextChange,
     onPreviousChange: changes.length === 0 ? undefined : goToPreviousChange,
+    onNextHunkInChange: currentChange === null ? undefined : nextHunkInChange,
+    onPreviousHunkInChange: currentChange === null ? undefined : previousHunkInChange,
     onEscape: focused === null ? undefined : () => setFocused(null),
     onZoomIn: zoom.zoomIn,
     onZoomOut: zoom.zoomOut,
@@ -439,9 +448,20 @@ export function App() {
           focused={focused !== null}
           canGoNext={nextChange !== null}
           canGoPrevious={previousChange !== null}
+          hunkPosition={changeHunk === -1 ? null : changeHunk + 1}
+          hunkTotal={changeHunks.length}
+          canGoNextHunk={canGoNextHunk}
+          canGoPreviousHunk={canGoPreviousHunk}
           onOpenContents={() => setNoteDialog({ kind: 'contents' })}
+          onOpenChange={() => {
+            if (currentChange !== null) {
+              setNoteDialog({ kind: 'change', changeId: currentChange });
+            }
+          }}
           onNext={goToNextChange}
           onPrevious={goToPreviousChange}
+          onNextHunk={nextHunkInChange}
+          onPreviousHunk={previousHunkInChange}
           onToggleFocus={() =>
             setFocused(focused === null ? currentChange : null)
           }
@@ -480,15 +500,13 @@ export function App() {
           notes={notes}
           order={notedOrder}
           onClose={() => setNoteDialog(null)}
-          onGoToHunk={(_fileId, hunkId) => revealHunk(hunkId)}
           onOpenChange={(changeId: string, hunkId?: string) => {
             // Asked from a hunk the reader is already on, the answer is the
-            // change itself — opened at that hunk, so the walk starts where
-            // they are. Yanking them to the change's first hunk would throw
-            // away the one piece of context they had.
+            // change itself, read in place. Yanking them to the change's first
+            // hunk would throw away the one piece of context they had.
             if (hunkId !== undefined) {
               setRequestedChange(changeId);
-              setNoteDialog({ kind: 'change', changeId, from: hunkId });
+              setNoteDialog({ kind: 'change', changeId });
               return;
             }
 
@@ -503,14 +521,8 @@ export function App() {
           }}
           focused={focused}
           currentChange={currentChange}
-          walkAt={dialogHunk}
-          onStep={stepHunk}
           onFocus={(changeId) => {
             setFocused(changeId);
-            setNoteDialog(null);
-          }}
-          onClearFocus={() => {
-            setFocused(null);
             setNoteDialog(null);
           }}
         />

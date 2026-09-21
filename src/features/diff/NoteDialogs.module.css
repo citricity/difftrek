@@ -43,56 +43,6 @@
   text-align: left;
 }
 
-/* Walking the change, in the dialog's own header: a pair of steppers between
-   the title and the close, sized like the toolbar's rather than like a gutter
-   mark, because here there is room to hit them. */
-.walk {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
-  align-items: center;
-  margin-left: auto;
-}
-
-.walkPosition {
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: calc(var(--ui-font-size) - 1px);
-  font-variant-numeric: tabular-nums;
-}
-
-.walkGroup {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.walkButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  background: var(--bg);
-  color: var(--text);
-  cursor: default;
-}
-
-.walkButton + .walkButton {
-  border-left: 1px solid var(--border);
-}
-
-.walkButton:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
-.walkButton:disabled {
-  color: var(--text-faint);
-}
-
 .close {
   display: flex;
   flex: 0 0 auto;
@@ -234,15 +184,7 @@
   padding: 0 9px 9px;
 }
 
-.jump,
-/* Where the walk is standing. The same mark the contents list uses for the
-   change the reader is in, so the two read alike. */
-.hunkLink[aria-current='true'] {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.hunkLink {
+.jump {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -256,36 +198,8 @@
   cursor: default;
 }
 
-.jump:hover,
-.hunkLink:hover {
+.jump:hover {
   text-decoration: underline;
-}
-
-.subtitle {
-  margin: 0 0 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.hunks {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* Where the walk is standing. The same mark the contents list uses for the
-   change the reader is in, so the two read alike. */
-.hunkLink[aria-current='true'] {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.hunkLink {
-  font-family: var(--font-mono);
-  font-size: var(--code-font-size);
 }
 
 .issues {
@@ -300,37 +214,6 @@
 }
 
 .issue:hover {
-  text-decoration: underline;
-}
-
-/* Narrowing Previous/Next to one intent. Set apart from the hunk list below
-   it, because it changes how the toolbar behaves rather than jumping
-   somewhere. */
-.focus {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 9px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-}
-
-.focusButton {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
-  cursor: default;
-}
-
-.focusButton:hover {
   text-decoration: underline;
 }
 
