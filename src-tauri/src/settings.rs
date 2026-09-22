@@ -105,7 +105,7 @@ fn lenient_wrap_mode<'de, D: Deserializer<'de>>(de: D) -> Result<WrapMode, D::Er
     })
 }
 
-/// Where the AI changelog's notes open: over the diff, or beside it.
+/// Where the AI changelog's notes open: over the diff, beside it, or above it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NotePlacement {
@@ -115,6 +115,11 @@ pub enum NotePlacement {
     /// A panel down the right-hand side. The diff narrows to make room, so the
     /// note never covers the code it is about.
     Sidebar,
+    /// A band across the top of the diff, under the change bar. For the split
+    /// view, where a sidebar would squeeze two panes instead of one: the diff
+    /// gives up height, which it has plenty of, rather than width.
+    #[serde(rename = "topbar")]
+    TopBar,
 }
 
 /// Reads a note placement, letting anything unrecognised cost only itself —
@@ -125,6 +130,7 @@ fn lenient_note_placement<'de, D: Deserializer<'de>>(
     let raw = serde_json::Value::deserialize(de)?;
     Ok(match raw.as_str() {
         Some("sidebar") => NotePlacement::Sidebar,
+        Some("topbar") => NotePlacement::TopBar,
         _ => NotePlacement::default(),
     })
 }
@@ -467,6 +473,15 @@ mod tests {
         save_to(&path, settings).unwrap();
         let written = std::fs::read_to_string(&path).unwrap();
         assert!(written.contains("\"notePlacement\": \"sidebar\""));
+        assert_eq!(load_from(&path), settings);
+
+        let settings = Settings {
+            note_placement: NotePlacement::TopBar,
+            ..Settings::default()
+        };
+        save_to(&path, settings).unwrap();
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("\"notePlacement\": \"topbar\""));
         assert_eq!(load_from(&path), settings);
     }
 

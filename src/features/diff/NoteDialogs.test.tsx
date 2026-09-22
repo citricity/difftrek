@@ -341,3 +341,43 @@ describe('the sidebar edge', () => {
     expect(onSidebarResize).toHaveBeenLastCalledWith(360, true);
   });
 });
+
+describe('in the top bar', () => {
+  it('shows the note above the diff, not modal and not resizable', () => {
+    const hunk = resolved();
+    render(
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="topbar"
+        onSidebarResize={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'src/one.ts' })).toHaveTextContent(
+      /read from the database/,
+    );
+    // Its height is a share of the window; the sidebar's width handle is not
+    // for it.
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+  });
+
+  it('takes up no room when nothing is open', () => {
+    const hunk = resolved();
+    const { container } = render(
+      <NoteDialogs
+        open={null}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="topbar"
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+});

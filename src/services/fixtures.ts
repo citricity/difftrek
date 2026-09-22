@@ -474,8 +474,9 @@ async function resolveFixture(
         notePlacement:
           requested.notePlacement === undefined
             ? settings.notePlacement
-            : requested.notePlacement === 'sidebar'
-              ? 'sidebar'
+            : requested.notePlacement === 'sidebar' ||
+                requested.notePlacement === 'topbar'
+              ? requested.notePlacement
               : 'overlay',
         noteSidebarWidth: Math.round(
           Math.min(

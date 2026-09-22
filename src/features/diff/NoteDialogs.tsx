@@ -138,11 +138,23 @@ export function NoteDialogs({
     </>
   );
 
-  if (placement === 'sidebar') {
-    // Absent rather than empty when nothing is open, so the diff gets the
-    // whole width back.
-    if (open === null) return null;
+  // Docked either way, absent rather than empty when nothing is open, so the
+  // diff gets its whole width or height back.
+  if (placement !== 'overlay' && open === null) return null;
 
+  if (placement === 'topbar') {
+    // Across the top, under the change bar. A fixed share of the window, and
+    // the body scrolls within it — a long description must not push the diff
+    // off the screen. Not resizable: the split view it exists for is short of
+    // width, not of height.
+    return (
+      <aside className={styles.topbar} aria-labelledby={TITLE_ID}>
+        {content}
+      </aside>
+    );
+  }
+
+  if (placement === 'sidebar') {
     return (
       <aside
         className={styles.sidebar}

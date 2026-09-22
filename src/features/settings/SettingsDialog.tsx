@@ -215,7 +215,9 @@ export function SettingsDialog({ state }: Props) {
               <span className={styles.hint}>
                 {settings.notePlacement === 'sidebar'
                   ? 'Notes open in a panel on the right. The diff narrows to make room and stays usable.'
-                  : 'Notes open in a dialog over the diff.'}
+                  : settings.notePlacement === 'topbar'
+                    ? 'Notes open in a bar above the diff, which keeps its full width. Best with the split view.'
+                    : 'Notes open in a dialog over the diff.'}
               </span>
             </label>
             <select
@@ -230,6 +232,7 @@ export function SettingsDialog({ state }: Props) {
             >
               <option value="overlay">Over the diff</option>
               <option value="sidebar">In a sidebar</option>
+              <option value="topbar">In a bar above the diff</option>
             </select>
           </div>
 

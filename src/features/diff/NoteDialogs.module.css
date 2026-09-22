@@ -37,6 +37,36 @@
   font-size: var(--ui-font-size);
 }
 
+/* The same content as a band across the top of the diff, under the change
+   bar. Its own row in the app's column, so the diff below gives up height
+   rather than width — what the split view, two panes wide, can spare. A
+   fixed share of the window with a floor, so a short window still shows the
+   header and a line or two; the body scrolls inside it. */
+.topbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  height: var(--note-topbar-height);
+  min-height: 96px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-size);
+}
+
+/* Less padding than the sidebar or the dialog: the band is short, and every
+   row of it spent on padding is a row of note not shown. */
+.topbar .header {
+  padding: 5px 12px;
+}
+
+.topbar .body {
+  gap: 8px;
+  padding: 8px 12px;
+}
+
 /* The draggable left edge. Inside the sidebar rather than straddling its
    border, because the sidebar clips its overflow. Invisible until it is
    hovered, focused or dragged, when it draws over the border in the accent. */

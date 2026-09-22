@@ -34,9 +34,11 @@ export type ZoomDirection = 'in' | 'out' | 'reset';
  * `settings.rs`.
  *
  * `overlay` is a modal dialog over the diff; `sidebar` is a panel down the
- * right-hand side that leaves the code in view and usable while it is open.
+ * right-hand side, and `topbar` a band across the top under the change bar —
+ * the one to use with the split view, where a sidebar would squeeze both
+ * panes. Both docked placements leave the code in view and usable.
  */
-export type NotePlacement = 'overlay' | 'sidebar';
+export type NotePlacement = 'overlay' | 'sidebar' | 'topbar';
 
 export interface Settings {
   /** Whether long lines wrap rather than scrolling horizontally, and where. */
@@ -59,7 +61,7 @@ export interface Settings {
    * zoom, so nothing on this side scales anything itself.
    */
   zoom: number;
-  /** Where the AI changelog's notes open: over the diff, or beside it. */
+  /** Where the AI changelog's notes open: over the diff, beside it, or above it. */
   notePlacement: NotePlacement;
   /**
    * How wide the notes sidebar is, in CSS pixels, as it was last dragged.

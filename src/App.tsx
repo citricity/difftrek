@@ -191,13 +191,15 @@ export function App() {
   const [noteDialog, setNoteDialog] = useState<NoteDialog>(null);
 
   /**
-   * Whether notes open in a sidebar beside the diff rather than over it.
+   * Whether notes open docked — in a sidebar beside the diff or a bar above
+   * it — rather than over it.
    *
-   * The sidebar is not modal, so the diff can still be read and stepped while
-   * a note is open — which changes what a few actions should do: going
+   * Docked notes are not modal, so the diff can still be read and stepped
+   * while one is open — which changes what a few actions should do: going
    * somewhere from the contents list no longer has a reason to close it.
    */
-  const notesDocked = settingsState.settings.notePlacement === 'sidebar';
+  const notePlacement = settingsState.settings.notePlacement;
+  const notesDocked = notePlacement !== 'overlay';
 
   /**
    * The sidebar's width while its edge is being dragged, and null otherwise.
@@ -477,6 +479,50 @@ export function App() {
     [loadFully],
   );
 
+  /**
+   * The notes, wherever Settings puts them: a dialog over the diff, a sidebar
+   * beside it (both mounted inside the document's row), or a bar above it
+   * (mounted before that row, under the change bar).
+   */
+  const noteView = changelog.changelog !== null && (
+    <NoteDialogs
+      open={noteDialog}
+      notes={notes}
+      order={notedOrder}
+      onClose={() => setNoteDialog(null)}
+      onOpenChange={(changeId: string, hunkId?: string) => {
+        // Asked from a hunk the reader is already on, the answer is the
+        // change itself, read in place. Yanking them to the change's first
+        // hunk would throw away the one piece of context they had.
+        if (hunkId !== undefined) {
+          setRequestedChange(changeId);
+          setNoteDialog({ kind: 'change', changeId });
+          return;
+        }
+
+        // Asked from the contents list, where no hunk is in play: the
+        // change's first hunk is the only sensible place to land.
+        const entry = changes.find((candidate) => candidate.id === changeId);
+        if (entry !== undefined) {
+          revealHunk(entry.hunkId);
+          setRequestedChange(changeId);
+        }
+        // Beside the diff the list stays open, to be used again: the whole
+        // point of docking it is that the code it jumps to is visible.
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      focused={focused}
+      currentChange={currentChange}
+      onFocus={(changeId) => {
+        setFocused(changeId);
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      placement={notePlacement}
+      sidebarWidth={sidebarWidth}
+      onSidebarResize={resizeSidebar}
+    />
+  );
+
   if (state.phase === 'failed' && state.error !== null) {
     return (
       <div className={styles.app}>
@@ -540,6 +586,8 @@ export function App() {
         />
       )}
 
+      {notePlacement === 'topbar' && noteView}
+
       <div className={styles.main}>
         <DiffDocument
           files={state.files}
@@ -567,44 +615,7 @@ export function App() {
           navigationFilter={navigationFilter}
         />
 
-        {changelog.changelog !== null && (
-          <NoteDialogs
-            open={noteDialog}
-            notes={notes}
-            order={notedOrder}
-            onClose={() => setNoteDialog(null)}
-            onOpenChange={(changeId: string, hunkId?: string) => {
-              // Asked from a hunk the reader is already on, the answer is the
-              // change itself, read in place. Yanking them to the change's first
-              // hunk would throw away the one piece of context they had.
-              if (hunkId !== undefined) {
-                setRequestedChange(changeId);
-                setNoteDialog({ kind: 'change', changeId });
-                return;
-              }
-
-              // Asked from the contents list, where no hunk is in play: the
-              // change's first hunk is the only sensible place to land.
-              const entry = changes.find((candidate) => candidate.id === changeId);
-              if (entry !== undefined) {
-                revealHunk(entry.hunkId);
-                setRequestedChange(changeId);
-              }
-              // Beside the diff the list stays open, to be used again: the whole
-              // point of docking it is that the code it jumps to is visible.
-              if (!notesDocked) setNoteDialog(null);
-            }}
-            focused={focused}
-            currentChange={currentChange}
-            onFocus={(changeId) => {
-              setFocused(changeId);
-              if (!notesDocked) setNoteDialog(null);
-            }}
-            placement={settingsState.settings.notePlacement}
-            sidebarWidth={sidebarWidth}
-            onSidebarResize={resizeSidebar}
-          />
-        )}
+        {notePlacement !== 'topbar' && noteView}
       </div>
     </div>
   );

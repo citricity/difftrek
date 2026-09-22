@@ -53,5 +53,8 @@ describe('SettingsDialog', () => {
     expect(placement.value).toBe('overlay');
     fireEvent.change(placement, { target: { value: 'sidebar' } });
     expect(update).toHaveBeenCalledWith({ notePlacement: 'sidebar' });
+
+    fireEvent.change(placement, { target: { value: 'topbar' } });
+    expect(update).toHaveBeenCalledWith({ notePlacement: 'topbar' });
   });
 });
