@@ -38,7 +38,7 @@ import {
   stepChange,
   stepWithinChange,
 } from './lib/noteMarkers.ts';
-import { followNote } from './lib/openNote.ts';
+import { entryPointOf, followNote } from './lib/openNote.ts';
 import type { NoteCursor } from './lib/openNote.ts';
 import { throttle } from './lib/throttle.ts';
 import type { Direction } from './lib/navigation.ts';
@@ -295,28 +295,6 @@ export function App() {
     [changelog, labelOf],
   );
 
-  const documentNotes = useMemo(() => {
-    if (changelog.changelog === null) return null;
-
-    return {
-      hunks: changelog.changelog.hunks,
-      state: changelog.state,
-      labelOf,
-      describe: changelog.describe,
-      onOpenHunk: (hunkId: string) => setNoteDialog({ kind: 'hunk', hunkId }),
-      // A badge names one change, and the reader has just said which: it
-      // becomes the bar's current change, so a hunk serving two intents shows
-      // the one clicked rather than the first. The cursor is left where it is
-      // — the reader is looking at the code, and moving it would scroll.
-      onOpenChange: (changeId: string) => {
-        setRequestedChange(changeId);
-        setNoteDialog({ kind: 'change', changeId });
-      },
-    };
-  }, [changelog, labelOf]);
-
-  const currentHunk = navigation.current?.hunkId ?? null;
-
   /**
    * The change the reader stepped to, which only the reader can say.
    *
@@ -327,6 +305,56 @@ export function App() {
    * to naming what is under the cursor.
    */
   const [requestedChange, setRequestedChange] = useState<string | null>(null);
+
+  /**
+   * Where the reader is, for handlers that must not be rebuilt as they move.
+   *
+   * `documentNotes` reaches every rendered row, so giving it a new identity on
+   * each step would undo the rows' memoisation for the sake of a click handler
+   * that only reads the cursor when it is called.
+   */
+  const cursorRef = useRef<string | null>(null);
+
+  /**
+   * Picking a logical change's letter in the gutter.
+   *
+   * It becomes the bar's current change, so a hunk serving two intents shows
+   * the one picked rather than the first — and, unless it already covers the
+   * hunk the reader is on, it takes them to where it starts. Selecting a
+   * change you cannot see and staying put was the confusing half of this
+   * (Guy); saying which intent you are reading here, and being yanked away for
+   * it, would be the other.
+   */
+  const openChangeFromGutter = useCallback(
+    (changeId: string) => {
+      const target = entryPointOf(notedOrder, notedHunks, changeId, cursorRef.current);
+      if (target !== null) revealHunk(target);
+
+      setRequestedChange(changeId);
+      setNoteDialog({ kind: 'change', changeId });
+    },
+    [notedHunks, notedOrder, revealHunk],
+  );
+
+  const documentNotes = useMemo(() => {
+    if (changelog.changelog === null) return null;
+
+    return {
+      hunks: changelog.changelog.hunks,
+      state: changelog.state,
+      labelOf,
+      describe: changelog.describe,
+      onOpenHunk: (hunkId: string) => setNoteDialog({ kind: 'hunk', hunkId }),
+      onOpenChange: openChangeFromGutter,
+    };
+  }, [changelog, labelOf, openChangeFromGutter]);
+
+  const currentHunk = navigation.current?.hunkId ?? null;
+
+  useEffect(() => {
+    cursorRef.current = currentHunk;
+  }, [currentHunk]);
+
   const hunkChanges =
     currentHunk === null ? undefined : notedHunks[currentHunk]?.logicalChangeIds;
   // Also kept while a step is still landing: a hunk in a file not read yet puts

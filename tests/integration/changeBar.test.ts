@@ -141,6 +141,43 @@ describe('walking a change from the bar', () => {
   });
 });
 
+describe('picking a change from the gutter', () => {
+  // Its own page: these are about where a click lands from a known start,
+  // which the walk above has moved on from.
+  beforeAll(async () => {
+    page = await app.open({ width: 1400, height: 600 });
+    // A click on the document, so the keys reach this page rather than the
+    // one the tests above left open.
+    await page.locator('[data-row]').first().click();
+  }, 60000);
+
+  it('takes the reader to where that change starts', async () => {
+    await page.keyboard.press('Shift+N');
+    await waitForHunk('Hunk 1 / 3');
+    expect((await counters()).change).toBe('Change 1 / 2');
+
+    // A letter for the other change, on a hunk the reader is not on: the
+    // cursor goes to where that change starts rather than staying behind.
+    await page
+      .getByRole('button', { name: /^Logical change B/ })
+      .first()
+      .click();
+
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('span')].some((span) =>
+        /^Change 2 \/ 2$/.test(span.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+      ),
+    );
+    expect((await counters()).hunk).toBe('Hunk 1 / 3');
+  });
+
+  // The other half of the rule — picking a change that already covers the
+  // hunk in view leaves the reader where they are — is pinned by
+  // `entryPointOf`'s unit tests: a marker for the current hunk sits under the
+  // sticky header after a reveal, which a click in a virtualised list cannot
+  // reach reliably.
+});
+
 describe('the page itself', () => {
   it('raises no errors while all that happens', () => {
     expect(app.pageErrors).toEqual([]);
