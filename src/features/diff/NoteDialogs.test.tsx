@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { NoteDialogs } from './NoteDialogs.tsx';
+import type { NoteDialog } from './NoteDialogs.tsx';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
 import type { AiChangelog, ResolvedHunk } from '../../types/index.ts';
 
@@ -225,5 +226,66 @@ describe('the contents dialog', () => {
     );
 
     expect(screen.getByText(/belongs to no logical change/)).toBeInTheDocument();
+  });
+});
+
+describe('in the sidebar', () => {
+  function renderPlaced(open: NoteDialog) {
+    const hunk = resolved();
+    const onClose = vi.fn();
+    const result = render(
+      <NoteDialogs
+        open={open}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={onClose}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+    return { ...result, onClose, hunk };
+  }
+
+  it('shows the note beside the diff rather than in a dialog', () => {
+    renderPlaced({ kind: 'hunk', hunkId: 'src/one.ts:hunk:0' });
+
+    // Not modal: nothing is a dialog, so nothing makes the diff inert.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const sidebar = screen.getByRole('complementary', { name: 'src/one.ts' });
+    expect(sidebar).toHaveTextContent(/read from the database/);
+  });
+
+  it('takes up no room when nothing is open', () => {
+    const { container } = renderPlaced(null);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('swaps what it shows without closing first', () => {
+    const { rerender, hunk } = renderPlaced({
+      kind: 'hunk',
+      hunkId: 'src/one.ts:hunk:0',
+    });
+
+    rerender(
+      <NoteDialogs
+        open={{ kind: 'change', changeId: '0' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+
+    expect(
+      screen.getByRole('complementary', { name: /Logical change/ }),
+    ).toHaveTextContent('Reset the error count');
+    expect(screen.queryByText(/read from the database/)).not.toBeInTheDocument();
+  });
+
+  it('closes from its own button', async () => {
+    const { onClose } = renderPlaced({ kind: 'contents' });
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalled();
   });
 });

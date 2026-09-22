@@ -4,12 +4,20 @@
  * Native `<dialog>`, as Settings and the file navigator are: `showModal` gives
  * the focus trap, the backdrop, the inert background and Escape for nothing,
  * and `CLAUDE.md` asks for native elements wherever they are practical.
+ *
+ * Or, when Settings says so, the same content in a sidebar beside the diff.
+ * A note is about code, and a dialog in the middle of the window covers the
+ * code it is about. The sidebar is deliberately not modal: the diff stays
+ * scrollable and clickable, and clicking another marker swaps what it shows
+ * rather than having to close it first. Escape is handled by the app's
+ * shortcuts there, since there is no `<dialog>` to raise `close`.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Crosshair, X } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
+import type { NotePlacement } from '../../types/index.ts';
 import { issueUrl } from '../../lib/issues.ts';
 import {
   changesInOrder,
@@ -39,6 +47,8 @@ interface Props {
   onFocus?: (changeId: string) => void;
   /** The change the reader is in, marked in the contents list. */
   currentChange?: string | null;
+  /** Over the diff as a modal dialog, or beside it in a sidebar. */
+  placement?: NotePlacement;
 }
 
 export function NoteDialogs({
@@ -50,9 +60,12 @@ export function NoteDialogs({
   focused = null,
   onFocus,
   currentChange = null,
+  placement = 'overlay',
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
 
+  // Re-run on a change of placement as well: switching to the overlay while a
+  // note is open mounts a fresh `<dialog>` that has not been shown yet.
   useEffect(() => {
     const element = dialog.current;
     if (element === null) return;
@@ -68,17 +81,10 @@ export function NoteDialogs({
       if (typeof element.close === 'function') element.close();
       else element.removeAttribute('open');
     }
-  }, [open]);
+  }, [open, placement]);
 
-  return (
-    <dialog
-      ref={dialog}
-      className={styles.dialog}
-      // Named by whichever header is rendered inside it. Without this the
-      // dialog announces itself as nothing at all.
-      aria-labelledby={TITLE_ID}
-      onClose={onClose}
-    >
+  const content = (
+    <>
       {open?.kind === 'hunk' && (
         <HunkDialog
           hunkId={open.hunkId}
@@ -105,6 +111,31 @@ export function NoteDialogs({
       {open?.kind === 'change' && (
         <ChangeDialog changeId={open.changeId} notes={notes} onClose={onClose} />
       )}
+    </>
+  );
+
+  if (placement === 'sidebar') {
+    // Absent rather than empty when nothing is open, so the diff gets the
+    // whole width back.
+    if (open === null) return null;
+
+    return (
+      <aside className={styles.sidebar} aria-labelledby={TITLE_ID}>
+        {content}
+      </aside>
+    );
+  }
+
+  return (
+    <dialog
+      ref={dialog}
+      className={styles.dialog}
+      // Named by whichever header is rendered inside it. Without this the
+      // dialog announces itself as nothing at all.
+      aria-labelledby={TITLE_ID}
+      onClose={onClose}
+    >
+      {content}
     </dialog>
   );
 }

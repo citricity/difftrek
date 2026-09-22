@@ -17,6 +17,25 @@
   font-size: var(--ui-font-size);
 }
 
+/* The same content docked to the right of the diff. A flex item beside the
+   document rather than a layer over it, so the diff narrows instead of being
+   covered — and auto wrapping, which measures the document's own viewport,
+   rewraps to the narrower width by itself. */
+.sidebar {
+  display: flex;
+  flex: 0 0 var(--note-sidebar-width);
+  flex-direction: column;
+  width: var(--note-sidebar-width);
+  max-width: 50%;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-size);
+}
+
 .dialog::backdrop {
   background: rgb(0 0 0 / 28%);
 }

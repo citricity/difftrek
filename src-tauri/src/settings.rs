@@ -96,6 +96,30 @@ fn lenient_wrap_mode<'de, D: Deserializer<'de>>(de: D) -> Result<WrapMode, D::Er
     })
 }
 
+/// Where the AI changelog's notes open: over the diff, or beside it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NotePlacement {
+    /// A modal dialog in the middle of the window, as they first shipped.
+    #[default]
+    Overlay,
+    /// A panel down the right-hand side. The diff narrows to make room, so the
+    /// note never covers the code it is about.
+    Sidebar,
+}
+
+/// Reads a note placement, letting anything unrecognised cost only itself —
+/// the same reasoning as `lenient_view_mode`.
+fn lenient_note_placement<'de, D: Deserializer<'de>>(
+    de: D,
+) -> Result<NotePlacement, D::Error> {
+    let raw = serde_json::Value::deserialize(de)?;
+    Ok(match raw.as_str() {
+        Some("sidebar") => NotePlacement::Sidebar,
+        _ => NotePlacement::default(),
+    })
+}
+
 /// Reads the zoom level, treating anything that is not a number as unset.
 ///
 /// The same reasoning as the two readers above: one unusable field must not
@@ -136,6 +160,10 @@ pub struct Settings {
     // above answers for a missing field, and it answers `DEFAULT_ZOOM`.
     #[serde(deserialize_with = "lenient_zoom")]
     pub zoom: u32,
+    /// Where the AI changelog's notes open. Presentation only; the shell never
+    /// reads it.
+    #[serde(default, deserialize_with = "lenient_note_placement")]
+    pub note_placement: NotePlacement,
 }
 
 impl Default for Settings {
@@ -145,6 +173,7 @@ impl Default for Settings {
             wrap_length: DEFAULT_WRAP_LENGTH,
             default_view_mode: ViewMode::Unified,
             zoom: DEFAULT_ZOOM,
+            note_placement: NotePlacement::Overlay,
         }
     }
 }
@@ -157,6 +186,7 @@ impl Settings {
             wrap_length: self.wrap_length.clamp(MIN_WRAP_LENGTH, MAX_WRAP_LENGTH),
             default_view_mode: self.default_view_mode,
             zoom: self.zoom.clamp(MIN_ZOOM, MAX_ZOOM),
+            note_placement: self.note_placement,
         }
     }
 }
@@ -239,6 +269,7 @@ mod tests {
         assert_eq!(settings.wrap_length, 120);
         assert_eq!(settings.default_view_mode, ViewMode::Unified);
         assert_eq!(settings.zoom, 100);
+        assert_eq!(settings.note_placement, NotePlacement::Overlay);
     }
 
     #[test]
@@ -364,6 +395,30 @@ mod tests {
         assert_eq!(settings.wrap, WrapMode::Off);
         assert_eq!(settings.wrap_length, 90);
         assert_eq!(settings.default_view_mode, ViewMode::Split);
+    }
+
+    #[test]
+    fn the_note_placement_round_trips() {
+        let path = temp_dir("note-placement").join("settings.json");
+        let settings = Settings {
+            note_placement: NotePlacement::Sidebar,
+            ..Settings::default()
+        };
+
+        save_to(&path, settings).unwrap();
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert!(written.contains("\"notePlacement\": \"sidebar\""));
+        assert_eq!(load_from(&path), settings);
+    }
+
+    #[test]
+    fn an_unknown_note_placement_costs_only_itself() {
+        let path = temp_dir("unknown-note-placement").join("settings.json");
+        std::fs::write(&path, r#"{"notePlacement": "left", "wrapLength": 90}"#).unwrap();
+
+        let settings = load_from(&path);
+        assert_eq!(settings.note_placement, NotePlacement::Overlay);
+        assert_eq!(settings.wrap_length, 90);
     }
 
     #[test]

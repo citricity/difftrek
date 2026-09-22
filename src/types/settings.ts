@@ -29,6 +29,15 @@ export type WrapMode = 'off' | 'column' | 'auto';
  */
 export type ZoomDirection = 'in' | 'out' | 'reset';
 
+/**
+ * Where the AI changelog's notes open. Mirrors `NotePlacement` in
+ * `settings.rs`.
+ *
+ * `overlay` is a modal dialog over the diff; `sidebar` is a panel down the
+ * right-hand side that leaves the code in view and usable while it is open.
+ */
+export type NotePlacement = 'overlay' | 'sidebar';
+
 export interface Settings {
   /** Whether long lines wrap rather than scrolling horizontally, and where. */
   wrap: WrapMode;
@@ -50,6 +59,8 @@ export interface Settings {
    * zoom, so nothing on this side scales anything itself.
    */
   zoom: number;
+  /** Where the AI changelog's notes open: over the diff, or beside it. */
+  notePlacement: NotePlacement;
 }
 
 /**
@@ -61,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wrapLength: 120,
   defaultViewMode: 'unified',
   zoom: 100,
+  notePlacement: 'overlay',
 };
 
 /** The range the backend will accept; the dialog holds the input to it too. */

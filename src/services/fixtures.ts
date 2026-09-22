@@ -469,6 +469,12 @@ async function resolveFixture(
           MAX_ZOOM,
           Math.max(MIN_ZOOM, requested.zoom ?? settings.zoom),
         ),
+        notePlacement:
+          requested.notePlacement === undefined
+            ? settings.notePlacement
+            : requested.notePlacement === 'sidebar'
+              ? 'sidebar'
+              : 'overlay',
       };
       return delay(settings);
     }

@@ -189,6 +189,15 @@ export function App() {
   const [noteDialog, setNoteDialog] = useState<NoteDialog>(null);
 
   /**
+   * Whether notes open in a sidebar beside the diff rather than over it.
+   *
+   * The sidebar is not modal, so the diff can still be read and stepped while
+   * a note is open — which changes what a few actions should do: going
+   * somewhere from the contents list no longer has a reason to close it.
+   */
+  const notesDocked = settingsState.settings.notePlacement === 'sidebar';
+
+  /**
    * Reveals a hunk that may be in a file nobody has opened yet — the file
    * lands at once and the hunk follows when its diff arrives.
    */
@@ -399,7 +408,15 @@ export function App() {
     onPreviousChange: changes.length === 0 ? undefined : goToPreviousChange,
     onNextHunkInChange: currentChange === null ? undefined : nextHunkInChange,
     onPreviousHunkInChange: currentChange === null ? undefined : previousHunkInChange,
-    onEscape: focused === null ? undefined : () => setFocused(null),
+    // An open sidebar goes first: it is the nearer thing to escape from, and a
+    // second press then clears the focus. A modal dialog handles its own
+    // Escape, which the hook already leaves alone.
+    onEscape:
+      notesDocked && noteDialog !== null
+        ? () => setNoteDialog(null)
+        : focused === null
+          ? undefined
+          : () => setFocused(null),
     onZoomIn: zoom.zoomIn,
     onZoomOut: zoom.zoomOut,
     onZoomReset: zoom.resetZoom,
@@ -475,65 +492,70 @@ export function App() {
         />
       )}
 
-      <DiffDocument
-        files={state.files}
-        model={model}
-        metrics={metrics}
-        loading={state.phase === 'starting'}
-        comparison={
-          state.repository === null
-            ? undefined
-            : (state.repository.comparison?.label ?? null)
-        }
-        current={navigation.current}
-        revealRequest={navigation.revealRequest}
-        onSelect={navigation.goTo}
-        onScrollToChange={navigation.goTo}
-        onSelectFile={navigation.goToFile}
-        onVisibleFileChange={prefetchAround}
-        onToggleCollapse={toggleCollapse}
-        onLoadFully={handleLoadFully}
-        onExpandContext={revealContext}
-        wrapColumn={wrapColumn}
-        viewMode={viewMode}
-        onViewportWidthChange={reportViewportWidth}
-        notes={documentNotes}
-        navigationFilter={navigationFilter}
-      />
-
-      {changelog.changelog !== null && (
-        <NoteDialogs
-          open={noteDialog}
-          notes={notes}
-          order={notedOrder}
-          onClose={() => setNoteDialog(null)}
-          onOpenChange={(changeId: string, hunkId?: string) => {
-            // Asked from a hunk the reader is already on, the answer is the
-            // change itself, read in place. Yanking them to the change's first
-            // hunk would throw away the one piece of context they had.
-            if (hunkId !== undefined) {
-              setRequestedChange(changeId);
-              setNoteDialog({ kind: 'change', changeId });
-              return;
-            }
-
-            // Asked from the contents list, where no hunk is in play: the
-            // change's first hunk is the only sensible place to land.
-            const entry = changes.find((candidate) => candidate.id === changeId);
-            if (entry !== undefined) {
-              revealHunk(entry.hunkId);
-              setRequestedChange(changeId);
-            }
-            setNoteDialog(null);
-          }}
-          focused={focused}
-          currentChange={currentChange}
-          onFocus={(changeId) => {
-            setFocused(changeId);
-            setNoteDialog(null);
-          }}
+      <div className={styles.main}>
+        <DiffDocument
+          files={state.files}
+          model={model}
+          metrics={metrics}
+          loading={state.phase === 'starting'}
+          comparison={
+            state.repository === null
+              ? undefined
+              : (state.repository.comparison?.label ?? null)
+          }
+          current={navigation.current}
+          revealRequest={navigation.revealRequest}
+          onSelect={navigation.goTo}
+          onScrollToChange={navigation.goTo}
+          onSelectFile={navigation.goToFile}
+          onVisibleFileChange={prefetchAround}
+          onToggleCollapse={toggleCollapse}
+          onLoadFully={handleLoadFully}
+          onExpandContext={revealContext}
+          wrapColumn={wrapColumn}
+          viewMode={viewMode}
+          onViewportWidthChange={reportViewportWidth}
+          notes={documentNotes}
+          navigationFilter={navigationFilter}
         />
-      )}
+
+        {changelog.changelog !== null && (
+          <NoteDialogs
+            open={noteDialog}
+            notes={notes}
+            order={notedOrder}
+            onClose={() => setNoteDialog(null)}
+            onOpenChange={(changeId: string, hunkId?: string) => {
+              // Asked from a hunk the reader is already on, the answer is the
+              // change itself, read in place. Yanking them to the change's first
+              // hunk would throw away the one piece of context they had.
+              if (hunkId !== undefined) {
+                setRequestedChange(changeId);
+                setNoteDialog({ kind: 'change', changeId });
+                return;
+              }
+
+              // Asked from the contents list, where no hunk is in play: the
+              // change's first hunk is the only sensible place to land.
+              const entry = changes.find((candidate) => candidate.id === changeId);
+              if (entry !== undefined) {
+                revealHunk(entry.hunkId);
+                setRequestedChange(changeId);
+              }
+              // Beside the diff the list stays open, to be used again: the whole
+              // point of docking it is that the code it jumps to is visible.
+              if (!notesDocked) setNoteDialog(null);
+            }}
+            focused={focused}
+            currentChange={currentChange}
+            onFocus={(changeId) => {
+              setFocused(changeId);
+              if (!notesDocked) setNoteDialog(null);
+            }}
+            placement={settingsState.settings.notePlacement}
+          />
+        )}
+      </div>
     </div>
   );
 }

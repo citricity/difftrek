@@ -29,6 +29,7 @@ export function SettingsDialog({ state }: Props) {
   const wrapId = useId();
   const lengthId = useId();
   const viewId = useId();
+  const notesId = useId();
 
   const { settings, error, update } = state;
 
@@ -205,6 +206,30 @@ export function SettingsDialog({ state }: Props) {
             >
               <option value="unified">Unified</option>
               <option value="split">Split</option>
+            </select>
+          </div>
+
+          <div className={styles.field}>
+            <label htmlFor={notesId} className={styles.label}>
+              AI changelog notes
+              <span className={styles.hint}>
+                {settings.notePlacement === 'sidebar'
+                  ? 'Notes open in a panel on the right. The diff narrows to make room and stays usable.'
+                  : 'Notes open in a dialog over the diff.'}
+              </span>
+            </label>
+            <select
+              id={notesId}
+              className={styles.select}
+              value={settings.notePlacement}
+              onChange={(event) =>
+                update({
+                  notePlacement: event.target.value as Settings['notePlacement'],
+                })
+              }
+            >
+              <option value="overlay">Over the diff</option>
+              <option value="sidebar">In a sidebar</option>
             </select>
           </div>
 

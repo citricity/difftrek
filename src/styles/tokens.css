@@ -43,6 +43,7 @@
      this. */
   --content-padding: 16px;
   --toolbar-height: 40px;
+  --note-sidebar-width: 360px;
 
   --radius: 4px;
   --radius-sm: 3px;

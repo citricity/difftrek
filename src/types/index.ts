@@ -26,7 +26,13 @@ export { changedSince, explained, isComplete } from './aiChangelog.ts';
 export type { GitAliasStatus } from './gitAlias.ts';
 export type { LaunchOptions } from './launch.ts';
 
-export type { Settings, ViewMode, WrapMode, ZoomDirection } from './settings.ts';
+export type {
+  NotePlacement,
+  Settings,
+  ViewMode,
+  WrapMode,
+  ZoomDirection,
+} from './settings.ts';
 export {
   DEFAULT_SETTINGS,
   MAX_WRAP_LENGTH,
