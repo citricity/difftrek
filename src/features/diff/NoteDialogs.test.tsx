@@ -45,20 +45,15 @@ function view(hunk: ResolvedHunk): AiChangelogView {
 
 function open(hunk: ResolvedHunk) {
   const notes = view(hunk);
-  const onGoToHunk = vi.fn();
-
   render(
     <NoteDialogs
       open={{ kind: 'hunk', hunkId: hunk.hunkId }}
       notes={notes}
       order={[hunk.hunkId]}
       onClose={vi.fn()}
-      onGoToHunk={onGoToHunk}
       onOpenChange={vi.fn()}
     />,
   );
-
-  return { onGoToHunk };
 }
 
 describe('the hunk dialog', () => {
@@ -122,7 +117,6 @@ describe('the hunk dialog', () => {
         notes={view(hunk)}
         order={[hunk.hunkId]}
         onClose={vi.fn()}
-        onGoToHunk={vi.fn()}
         onOpenChange={onOpenChange}
       />,
     );
@@ -133,10 +127,9 @@ describe('the hunk dialog', () => {
 });
 
 describe('the logical change dialog', () => {
-  it('lists the hunks it covers, and jumps to one', async () => {
+  it('shows the description and the issues, and nothing to walk', () => {
     const hunk = resolved();
     const notes = view(hunk);
-    const onGoToHunk = vi.fn();
 
     render(
       <NoteDialogs
@@ -144,19 +137,23 @@ describe('the logical change dialog', () => {
         notes={notes}
         order={[hunk.hunkId]}
         onClose={vi.fn()}
-        onGoToHunk={onGoToHunk}
         onOpenChange={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('1 hunk')).toBeInTheDocument();
+    expect(screen.getByText('Reset the error count')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '#9' })).toHaveAttribute(
       'href',
       'https://example.com/issues/9',
     );
 
-    await userEvent.click(screen.getByRole('button', { name: /src\/one\.ts/ }));
-    expect(onGoToHunk).toHaveBeenCalledWith('src/one.ts', 'src/one.ts:hunk:0');
+    // The walk is the change bar's now: a dialog over the diff hides the
+    // code the walk is meant to show.
+    expect(screen.queryByText('1 hunk')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /src\/one\.ts/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Focus/ })).not.toBeInTheDocument();
   });
 });
 
@@ -178,7 +175,6 @@ describe('the logical change dialog, given a thin payload', () => {
         notes={notes}
         order={[hunk.hunkId]}
         onClose={vi.fn()}
-        onGoToHunk={vi.fn()}
         onOpenChange={vi.fn()}
       />,
     );
@@ -201,7 +197,6 @@ describe('the contents dialog', () => {
         order={[hunk.hunkId]}
         currentChange="0"
         onClose={vi.fn()}
-        onGoToHunk={vi.fn()}
         onOpenChange={onOpenChange}
       />,
     );
@@ -225,71 +220,10 @@ describe('the contents dialog', () => {
         notes={view(hunk)}
         order={[hunk.hunkId]}
         onClose={vi.fn()}
-        onGoToHunk={vi.fn()}
         onOpenChange={vi.fn()}
       />,
     );
 
     expect(screen.getByText(/belongs to no logical change/)).toBeInTheDocument();
-  });
-});
-
-describe('walking a change from its dialog', () => {
-  function walk(at: number) {
-    const hunk = resolved();
-    const notes = view(hunk);
-    // A second hunk, so there is somewhere to walk to.
-    const second = resolved({ hunkId: 'src/two.ts:hunk:0' });
-    const changelog = notes.changelog;
-    if (changelog !== null) changelog.hunks[second.hunkId] = second;
-
-    const onStep = vi.fn();
-
-    render(
-      <NoteDialogs
-        open={{ kind: 'change', changeId: '0' }}
-        notes={notes}
-        order={[hunk.hunkId, second.hunkId]}
-        walkAt={at}
-        onStep={onStep}
-        onClose={vi.fn()}
-        onGoToHunk={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
-
-    return { onStep };
-  }
-
-  it('counts the reader through the change, and steps on', async () => {
-    const { onStep } = walk(0);
-
-    expect(screen.getByText('1 / 2')).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole('button', { name: 'On through this change' }),
-    );
-
-    expect(onStep).toHaveBeenCalledWith(1);
-  });
-
-  it('cannot step past either end', () => {
-    walk(0);
-
-    expect(
-      screen.getByRole('button', { name: 'Back through this change' }),
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'On through this change' }),
-    ).toBeEnabled();
-  });
-
-  // The arrows and the list are the same control, so the list says where the
-  // walk is standing.
-  it('marks the hunk it is standing on', () => {
-    walk(1);
-
-    const rows = screen.getAllByRole('button', { name: /hunk 1/ });
-    expect(rows[1]).toHaveAttribute('aria-current', 'true');
-    expect(rows[0]).not.toHaveAttribute('aria-current');
   });
 });

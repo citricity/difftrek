@@ -10,6 +10,7 @@ import {
   hunksOfChange,
   laneColour,
   stepChange,
+  stepWithinChange,
   ungroupedHunks,
 } from './noteMarkers.ts';
 import type { ResolvedHunk } from '../types/index.ts';
@@ -278,6 +279,36 @@ describe('stepChange', () => {
         previous: null,
       });
     });
+  });
+});
+
+describe('stepWithinChange', () => {
+  const walk = ['a.ts:hunk:0', 'b.ts:hunk:2', 'd.ts:hunk:0'];
+
+  it('steps on and back through the change', () => {
+    expect(stepWithinChange(walk, 'b.ts:hunk:2', 'next')).toBe('d.ts:hunk:0');
+    expect(stepWithinChange(walk, 'b.ts:hunk:2', 'previous')).toBe('a.ts:hunk:0');
+  });
+
+  // Crossing into the next change is the other arrows' job.
+  it('stops at either end rather than leaving the change', () => {
+    expect(stepWithinChange(walk, 'd.ts:hunk:0', 'next')).toBeNull();
+    expect(stepWithinChange(walk, 'a.ts:hunk:0', 'previous')).toBeNull();
+  });
+
+  it('starts the change again from a hunk outside it, and only forwards', () => {
+    expect(stepWithinChange(walk, 'c.ts:hunk:0', 'next')).toBe('a.ts:hunk:0');
+    expect(stepWithinChange(walk, 'c.ts:hunk:0', 'previous')).toBeNull();
+    expect(stepWithinChange(walk, null, 'next')).toBe('a.ts:hunk:0');
+  });
+
+  it('has nowhere to go in a change of one hunk', () => {
+    expect(stepWithinChange(['a.ts:hunk:0'], 'a.ts:hunk:0', 'next')).toBeNull();
+    expect(stepWithinChange(['a.ts:hunk:0'], 'a.ts:hunk:0', 'previous')).toBeNull();
+  });
+
+  it('has nowhere to go with no change at all', () => {
+    expect(stepWithinChange([], null, 'next')).toBeNull();
   });
 });
 

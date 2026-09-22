@@ -13,9 +13,16 @@ function bar(overrides: Partial<Parameters<typeof ChangeBar>[0]> = {}) {
     focused: false,
     canGoNext: true,
     canGoPrevious: false,
+    hunkPosition: 2,
+    hunkTotal: 2,
+    canGoNextHunk: false,
+    canGoPreviousHunk: true,
     onOpenContents: vi.fn(),
+    onOpenChange: vi.fn(),
     onNext: vi.fn(),
     onPrevious: vi.fn(),
+    onNextHunk: vi.fn(),
+    onPreviousHunk: vi.fn(),
     onToggleFocus: vi.fn(),
     ...overrides,
   };
@@ -29,7 +36,35 @@ describe('the change bar', () => {
     bar();
 
     expect(screen.getByText('Reset the error count')).toBeInTheDocument();
-    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByText('Change').parentElement).toHaveTextContent('Change 1 / 3');
+  });
+
+  // Two counters with arrows sit in one strip; each says what it counts.
+  it('counts the hunks of the change apart from the changes', () => {
+    bar();
+    expect(screen.getByText('Hunk').parentElement).toHaveTextContent('Hunk 2 / 2');
+  });
+
+  it('walks the change in view, and stops at its end', async () => {
+    const props = bar();
+
+    expect(
+      screen.getByRole('button', { name: 'Next hunk in this change' }),
+    ).toBeDisabled();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Previous hunk in this change' }),
+    );
+    expect(props.onPreviousHunk).toHaveBeenCalled();
+  });
+
+  it('shows a long description whole on a click', async () => {
+    const props = bar();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Reset the error count' }),
+    );
+    expect(props.onOpenChange).toHaveBeenCalled();
   });
 
   it('says a hunk belongs to no change, rather than showing an empty row', () => {

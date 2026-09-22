@@ -19,6 +19,14 @@ export interface Shortcuts {
   onNextChange?: () => void;
   onPreviousChange?: () => void;
   /**
+   * Through the hunks of the change in view, stopping at its ends — the change
+   * bar's right-hand arrows. Brackets, the keys vim gives to "next change"
+   * within something; `n`/`p` with a modifier would read as a bigger jump,
+   * and this is a narrower one.
+   */
+  onNextHunkInChange?: () => void;
+  onPreviousHunkInChange?: () => void;
+  /**
    * Escape, when there is something to escape from — today, a focused logical
    * change. Left undefined otherwise, so Escape keeps meaning whatever the
    * browser and any open dialog make of it.
@@ -76,6 +84,8 @@ export function useKeyboardShortcuts({
   onPrevious,
   onNextChange,
   onPreviousChange,
+  onNextHunkInChange,
+  onPreviousHunkInChange,
   onEscape,
   onZoomIn,
   onZoomOut,
@@ -120,6 +130,14 @@ export function useKeyboardShortcuts({
         return;
       }
 
+      if (event.key === ']' || event.key === '[') {
+        const step = event.key === ']' ? onNextHunkInChange : onPreviousHunkInChange;
+        if (step === undefined) return;
+        event.preventDefault();
+        step();
+        return;
+      }
+
       // `n`/`p` mirror `less` and `git log`; `j`/`k` mirror vim. Both are
       // muscle memory for the tools this sits alongside. Compared in lower
       // case and paired with `shiftKey`, because Caps Lock also sends `N` —
@@ -151,6 +169,8 @@ export function useKeyboardShortcuts({
     onPrevious,
     onNextChange,
     onPreviousChange,
+    onNextHunkInChange,
+    onPreviousHunkInChange,
     onEscape,
     onZoomIn,
     onZoomOut,

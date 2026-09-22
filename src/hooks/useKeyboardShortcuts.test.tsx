@@ -20,6 +20,8 @@ function keys(
     onPrevious: vi.fn(),
     onNextChange: vi.fn(),
     onPreviousChange: vi.fn(),
+    onNextHunkInChange: vi.fn(),
+    onPreviousHunkInChange: vi.fn(),
     onEscape: vi.fn(),
     onZoomIn: vi.fn(),
     onZoomOut: vi.fn(),
@@ -48,6 +50,18 @@ describe('the shortcuts', () => {
     await userEvent.keyboard('{Shift>}n{/Shift}');
 
     expect(handlers.onNextChange).toHaveBeenCalledTimes(1);
+    expect(handlers.onNext).not.toHaveBeenCalled();
+  });
+
+  it('steps through the change in view on the brackets', async () => {
+    const handlers = keys();
+
+    // `[[` is user-event's escape for a literal `[`.
+    await userEvent.keyboard(']');
+    await userEvent.keyboard('[[');
+
+    expect(handlers.onNextHunkInChange).toHaveBeenCalledTimes(1);
+    expect(handlers.onPreviousHunkInChange).toHaveBeenCalledTimes(1);
     expect(handlers.onNext).not.toHaveBeenCalled();
   });
 

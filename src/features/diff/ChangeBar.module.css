@@ -71,6 +71,26 @@
   color: var(--text-faint);
 }
 
+/* One walk: its word, its counter and its arrows, held together so the two
+   walks in the bar read as two controls rather than one run of numbers. */
+.walk {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Room between the badge and the walk beside it, so the badge and its list
+   read as one thing and the counter as another. */
+.contents + .walk {
+  margin-left: 4px;
+}
+
+.word {
+  font-family: var(--font-ui);
+  font-variant-numeric: normal;
+}
+
 .description {
   flex: 1 1 auto;
   min-width: 0;
@@ -78,6 +98,27 @@
   color: var(--text-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* The description as a button: nothing about it should look like one until
+   it is pointed at, because it is read far more often than clicked. */
+.descriptionButton {
+  display: block;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.descriptionButton:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .muted {

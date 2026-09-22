@@ -17,10 +17,9 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chromium } from 'playwright';
-import type { Browser, Page } from 'playwright';
-import { build, preview } from 'vite';
-import type { PreviewServer } from 'vite';
+import type { Page } from 'playwright';
+import { startApp } from './harness.ts';
+import type { App } from './harness.ts';
 
 interface Geometry {
   viewportWidth: number;
@@ -34,10 +33,8 @@ interface Geometry {
   paneWidths: number[];
 }
 
-let server: PreviewServer;
-let browser: Browser;
+let app: App;
 let page: Page;
-const pageErrors: string[] = [];
 
 /** Reads the document's geometry from the live page. */
 async function geometry(): Promise<Geometry> {
@@ -61,36 +58,12 @@ async function geometry(): Promise<Geometry> {
 }
 
 beforeAll(async () => {
-  await build({ logLevel: 'warn' });
-  server = await preview({
-    preview: { port: 4183, strictPort: true },
-    logLevel: 'warn',
-  });
-
-  browser = await chromium.launch({
-    // An escape hatch for images that ship their own Chromium rather than
-    // Playwright's; unset, Playwright finds the one it installed.
-    executablePath: process.env.DIFFTREK_CHROMIUM,
-  });
-
-  page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-  page.on('pageerror', (error) => pageErrors.push(error.message));
-
-  const url = server.resolvedUrls?.local[0] ?? 'http://localhost:4183/';
-  await page.goto(url);
-
-  // The sample answers with a deliberate delay, so wait for a document rather
-  // than for a number of milliseconds.
-  await page.waitForFunction(
-    () => document.querySelectorAll('[data-row]').length > 4,
-    undefined,
-    { timeout: 15000 },
-  );
+  app = await startApp(4183);
+  page = await app.open({ width: 1400, height: 900 });
 }, 180000);
 
 afterAll(async () => {
-  await browser?.close();
-  server?.httpServer.close();
+  await app?.close();
 });
 
 describe('the document fills its viewport', () => {
@@ -165,6 +138,6 @@ describe('switching view mode', () => {
 
 describe('the page itself', () => {
   it('raises no errors while all that happens', () => {
-    expect(pageErrors).toEqual([]);
+    expect(app.pageErrors).toEqual([]);
   });
 });
