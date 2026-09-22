@@ -15,8 +15,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Crosshair, X } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
+import {
+  DEFAULT_SETTINGS,
+  MAX_NOTE_SIDEBAR_WIDTH,
+  MIN_NOTE_SIDEBAR_WIDTH,
+} from '../../types/index.ts';
 import type { NotePlacement } from '../../types/index.ts';
 import { issueUrl } from '../../lib/issues.ts';
 import {
@@ -28,12 +33,11 @@ import {
 } from '../../lib/noteMarkers.ts';
 import styles from './NoteDialogs.module.css';
 
-/** What the reader has open, if anything. */
-export type NoteDialog =
-  | { kind: 'hunk'; hunkId: string }
-  | { kind: 'change'; changeId: string }
-  | { kind: 'contents' }
-  | null;
+import type { NoteDialog } from '../../lib/openNote.ts';
+
+// Defined beside `followNote`, which is what decides how it changes; exported
+// from here too because this is where everything else reaches for it.
+export type { NoteDialog };
 
 interface Props {
   open: NoteDialog;
@@ -49,6 +53,15 @@ interface Props {
   currentChange?: string | null;
   /** Over the diff as a modal dialog, or beside it in a sidebar. */
   placement?: NotePlacement;
+  /** The sidebar's width in CSS pixels. Unused in the overlay. */
+  sidebarWidth?: number;
+  /**
+   * Called as the sidebar's edge is dragged, with `done` false while the drag
+   * is under way and true once — on release, a key press or a reset — for the
+   * width to keep. Saving on every frame of a drag would write the settings
+   * file sixty times a second.
+   */
+  onSidebarResize?: (width: number, done: boolean) => void;
 }
 
 export function NoteDialogs({
@@ -61,6 +74,8 @@ export function NoteDialogs({
   onFocus,
   currentChange = null,
   placement = 'overlay',
+  sidebarWidth = DEFAULT_SETTINGS.noteSidebarWidth,
+  onSidebarResize,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -87,6 +102,10 @@ export function NoteDialogs({
     <>
       {open?.kind === 'hunk' && (
         <HunkDialog
+          // Keyed so a note that follows the cursor starts afresh on each hunk:
+          // the accordion's open state and the scroll position belong to the
+          // hunk they were set on.
+          key={open.hunkId}
           hunkId={open.hunkId}
           notes={notes}
           onClose={onClose}
@@ -109,7 +128,12 @@ export function NoteDialogs({
       )}
 
       {open?.kind === 'change' && (
-        <ChangeDialog changeId={open.changeId} notes={notes} onClose={onClose} />
+        <ChangeDialog
+          key={open.changeId}
+          changeId={open.changeId}
+          notes={notes}
+          onClose={onClose}
+        />
       )}
     </>
   );
@@ -120,7 +144,14 @@ export function NoteDialogs({
     if (open === null) return null;
 
     return (
-      <aside className={styles.sidebar} aria-labelledby={TITLE_ID}>
+      <aside
+        className={styles.sidebar}
+        aria-labelledby={TITLE_ID}
+        style={{ '--note-sidebar-width': `${sidebarWidth}px` } as CSSProperties}
+      >
+        {onSidebarResize !== undefined && (
+          <SidebarEdge width={sidebarWidth} onResize={onSidebarResize} />
+        )}
         {content}
       </aside>
     );
@@ -137,6 +168,108 @@ export function NoteDialogs({
     >
       {content}
     </dialog>
+  );
+}
+
+/** How far one arrow key press moves the sidebar's edge, in CSS pixels. */
+const KEYBOARD_STEP = 16;
+
+/**
+ * The sidebar's left edge, dragged to resize it.
+ *
+ * A separator in ARIA terms, so it is focusable and the arrow keys move it,
+ * and a double click puts it back to the default. The width is clamped to
+ * half the space the sidebar shares with the diff as well as to the stored
+ * range: CSS caps it there anyway, and a stored width wider than what is
+ * drawn would leave a dead zone at the start of the next drag.
+ */
+function SidebarEdge({
+  width,
+  onResize,
+}: {
+  width: number;
+  onResize: (width: number, done: boolean) => void;
+}) {
+  const drag = useRef<{ x: number; width: number; last: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const clamp = (element: HTMLElement, wanted: number) => {
+    // Zero where nothing has been laid out (jsdom), which must not read as
+    // "no room at all".
+    const shared = element.closest('aside')?.parentElement?.clientWidth || Infinity;
+    const upper = Math.min(MAX_NOTE_SIDEBAR_WIDTH, Math.floor(shared / 2));
+    return Math.round(Math.max(MIN_NOTE_SIDEBAR_WIDTH, Math.min(upper, wanted)));
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    // No text selection sweeping across the diff while the edge moves.
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    // Measured rather than taken from `width`, so a drag starts from what is
+    // on screen even where the window has capped it.
+    const drawn =
+      event.currentTarget.closest('aside')?.getBoundingClientRect().width ?? width;
+    drag.current = { x: event.clientX, width: drawn, last: drawn };
+    setDragging(true);
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const start = drag.current;
+    if (start === null) return;
+
+    // The edge is on the sidebar's left, so moving left makes it wider.
+    const next = clamp(event.currentTarget, start.width + start.x - event.clientX);
+    if (next === start.last) return;
+
+    start.last = next;
+    onResize(next, false);
+  };
+
+  const finish = (event: PointerEvent<HTMLDivElement>) => {
+    const start = drag.current;
+    if (start === null) return;
+
+    drag.current = null;
+    setDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onResize(start.last, true);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step =
+      event.key === 'ArrowLeft'
+        ? KEYBOARD_STEP
+        : event.key === 'ArrowRight'
+          ? -KEYBOARD_STEP
+          : 0;
+    if (step === 0) return;
+
+    event.preventDefault();
+    onResize(clamp(event.currentTarget, width + step), true);
+  };
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the notes sidebar"
+      aria-valuemin={MIN_NOTE_SIDEBAR_WIDTH}
+      aria-valuemax={MAX_NOTE_SIDEBAR_WIDTH}
+      aria-valuenow={width}
+      title="Drag to resize · double-click to reset"
+      tabIndex={0}
+      className={`${styles.edge} ${dragging ? styles.edgeDragging : ''}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onDoubleClick={() => onResize(DEFAULT_SETTINGS.noteSidebarWidth, true)}
+      onKeyDown={onKeyDown}
+    />
   );
 }
 

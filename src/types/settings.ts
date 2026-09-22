@@ -61,6 +61,11 @@ export interface Settings {
   zoom: number;
   /** Where the AI changelog's notes open: over the diff, or beside it. */
   notePlacement: NotePlacement;
+  /**
+   * How wide the notes sidebar is, in CSS pixels, as it was last dragged.
+   * The window caps it again at half its width.
+   */
+  noteSidebarWidth: number;
 }
 
 /**
@@ -73,6 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultViewMode: 'unified',
   zoom: 100,
   notePlacement: 'overlay',
+  noteSidebarWidth: 360,
 };
 
 /** The range the backend will accept; the dialog holds the input to it too. */
@@ -82,3 +88,7 @@ export const MAX_WRAP_LENGTH = 1000;
 /** The same for the zoom level, in per cent. The ladder spans exactly this. */
 export const MIN_ZOOM = 50;
 export const MAX_ZOOM = 300;
+
+/** The sidebar width the backend will store, in CSS pixels. */
+export const MIN_NOTE_SIDEBAR_WIDTH = 240;
+export const MAX_NOTE_SIDEBAR_WIDTH = 900;

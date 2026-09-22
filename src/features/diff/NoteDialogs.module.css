@@ -22,6 +22,7 @@
    covered — and auto wrapping, which measures the document's own viewport,
    rewraps to the narrower width by itself. */
 .sidebar {
+  position: relative;
   display: flex;
   flex: 0 0 var(--note-sidebar-width);
   flex-direction: column;
@@ -34,6 +35,41 @@
   color: var(--text);
   font-family: var(--font-ui);
   font-size: var(--ui-font-size);
+}
+
+/* The draggable left edge. Inside the sidebar rather than straddling its
+   border, because the sidebar clips its overflow. Invisible until it is
+   hovered, focused or dragged, when it draws over the border in the accent. */
+.edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.edge::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  content: '';
+  transition: background-color 120ms ease;
+}
+
+.edge:hover::before,
+.edge:focus-visible::before,
+.edgeDragging::before {
+  background: var(--accent);
+}
+
+.edge:focus-visible {
+  outline: none;
 }
 
 .dialog::backdrop {

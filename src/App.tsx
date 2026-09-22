@@ -38,6 +38,8 @@ import {
   stepChange,
   stepWithinChange,
 } from './lib/noteMarkers.ts';
+import { followNote } from './lib/openNote.ts';
+import type { NoteCursor } from './lib/openNote.ts';
 import { throttle } from './lib/throttle.ts';
 import type { Direction } from './lib/navigation.ts';
 import type { ResolvedHunk, ViewMode } from './types/index.ts';
@@ -198,6 +200,30 @@ export function App() {
   const notesDocked = settingsState.settings.notePlacement === 'sidebar';
 
   /**
+   * The sidebar's width while its edge is being dragged, and null otherwise.
+   *
+   * Held here for the length of the drag and saved once when it ends, so the
+   * settings file is written for the width the reader settled on rather than
+   * for every frame on the way to it.
+   */
+  const [draggedWidth, setDraggedWidth] = useState<number | null>(null);
+  const sidebarWidth = draggedWidth ?? settingsState.settings.noteSidebarWidth;
+  const { update: updateSettings } = settingsState;
+
+  const resizeSidebar = useCallback(
+    (width: number, done: boolean) => {
+      if (!done) {
+        setDraggedWidth(width);
+        return;
+      }
+
+      setDraggedWidth(null);
+      updateSettings({ noteSidebarWidth: width });
+    },
+    [updateSettings],
+  );
+
+  /**
    * Reveals a hunk that may be in a file nobody has opened yet — the file
    * lands at once and the hunk follows when its diff arrives.
    */
@@ -313,6 +339,28 @@ export function App() {
 
   const currentChange =
     focused ?? stepped ?? changeOfHunk(notedHunks, currentHunk);
+
+  /**
+   * A docked note follows the reader: step or scroll onto another hunk and a
+   * hunk note shows that hunk; move into another change and a change note
+   * shows that change.
+   *
+   * Adjusted during render against the cursor it last saw, rather than in an
+   * effect, so the sidebar never paints a frame about the hunk just left.
+   * Only in the sidebar — the overlay is modal and the cursor cannot move
+   * under it.
+   */
+  const [lastCursor, setLastCursor] = useState<NoteCursor>({
+    hunkId: currentHunk,
+    changeId: currentChange,
+  });
+  if (lastCursor.hunkId !== currentHunk || lastCursor.changeId !== currentChange) {
+    const nextCursor = { hunkId: currentHunk, changeId: currentChange };
+    setLastCursor(nextCursor);
+    if (notesDocked) {
+      setNoteDialog((note) => followNote(note, lastCursor, nextCursor));
+    }
+  }
 
   /**
    * The hunks of the change in view, and which of them the reader is on: what
@@ -553,6 +601,8 @@ export function App() {
               if (!notesDocked) setNoteDialog(null);
             }}
             placement={settingsState.settings.notePlacement}
+            sidebarWidth={sidebarWidth}
+            onSidebarResize={resizeSidebar}
           />
         )}
       </div>

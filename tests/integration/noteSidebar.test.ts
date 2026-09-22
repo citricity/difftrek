@@ -2,8 +2,9 @@
  * Notes in a sidebar, in a real browser.
  *
  * What only a layout can show: that the diff narrows to make room rather than
- * being covered, that nothing is made inert while a note is open, and that
- * Escape closes the sidebar before it clears anything else.
+ * being covered, that nothing is made inert while a note is open, that the
+ * note follows the cursor, that dragging the edge resizes it and the width
+ * sticks, and that Escape closes it.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -82,6 +83,56 @@ describe('notes in a sidebar', () => {
       was,
     );
     expect(await sidebar().count()).toBe(1);
+  });
+
+  it('follows the reader from hunk to hunk', async () => {
+    await page
+      .getByRole('button', { name: /^Why this hunk exists/ })
+      .first()
+      .click();
+    await sidebar()
+      .getByText(/reading it from the DOM/)
+      .waitFor();
+    const was = await sidebar().textContent();
+
+    await page.keyboard.press('n');
+    await page.waitForFunction(
+      (text) => document.querySelector('aside')?.textContent !== text,
+      was,
+    );
+
+    // Still a hunk note, now about a different hunk.
+    expect(await sidebar().textContent()).not.toContain('reading it from the DOM');
+  });
+
+  it('is resized by dragging its edge, and remembers the width', async () => {
+    const edge = page.getByRole('separator', { name: 'Resize the notes sidebar' });
+    const start = (await sidebar().boundingBox())!;
+    const handle = (await edge.boundingBox())!;
+
+    await page.mouse.move(handle.x + 2, handle.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 60, handle.y + 200, { steps: 5 });
+    await page.mouse.move(handle.x - 118, handle.y + 200, { steps: 5 });
+    await page.mouse.up();
+
+    const widened = (await sidebar().boundingBox())!;
+    expect(Math.abs(widened.width - (start.width + 120))).toBeLessThanOrEqual(2);
+
+    // The diff still ends where the sidebar begins.
+    expect(await documentRight()).toBeLessThanOrEqual(Math.ceil(widened.x));
+
+    // Closed and opened again, it comes back at the width it was left at.
+    await page.keyboard.press('Escape');
+    await sidebar().waitFor({ state: 'detached' });
+    await page
+      .getByRole('button', { name: /^Why this hunk exists/ })
+      .first()
+      .click();
+    await sidebar().waitFor();
+    expect(Math.round((await sidebar().boundingBox())!.width)).toBe(
+      Math.round(widened.width),
+    );
   });
 
   it('closes on Escape and gives the diff its width back', async () => {

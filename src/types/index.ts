@@ -35,8 +35,10 @@ export type {
 } from './settings.ts';
 export {
   DEFAULT_SETTINGS,
+  MAX_NOTE_SIDEBAR_WIDTH,
   MAX_WRAP_LENGTH,
   MAX_ZOOM,
+  MIN_NOTE_SIDEBAR_WIDTH,
   MIN_WRAP_LENGTH,
   MIN_ZOOM,
 } from './settings.ts';

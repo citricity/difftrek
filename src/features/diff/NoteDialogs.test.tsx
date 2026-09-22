@@ -289,3 +289,55 @@ describe('in the sidebar', () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe('the sidebar edge', () => {
+  function renderEdge(width = 360) {
+    const hunk = resolved();
+    const onSidebarResize = vi.fn();
+    render(
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+        sidebarWidth={width}
+        onSidebarResize={onSidebarResize}
+      />,
+    );
+    return {
+      edge: screen.getByRole('separator', { name: 'Resize the notes sidebar' }),
+      onSidebarResize,
+    };
+  }
+
+  it('says how wide the sidebar is', () => {
+    expect(renderEdge(420).edge).toHaveAttribute('aria-valuenow', '420');
+  });
+
+  it('moves with the arrow keys, and keeps each step', async () => {
+    const { edge, onSidebarResize } = renderEdge();
+    edge.focus();
+
+    // The edge is on the left: left widens, right narrows.
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(376, true);
+    await userEvent.keyboard('{ArrowRight}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(344, true);
+  });
+
+  it('will not go narrower than the minimum', async () => {
+    const { edge, onSidebarResize } = renderEdge(240);
+    edge.focus();
+
+    await userEvent.keyboard('{ArrowRight}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(240, true);
+  });
+
+  it('goes back to the default on a double click', async () => {
+    const { edge, onSidebarResize } = renderEdge(600);
+    await userEvent.dblClick(edge);
+    expect(onSidebarResize).toHaveBeenLastCalledWith(360, true);
+  });
+});

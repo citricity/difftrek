@@ -36,6 +36,15 @@ const MIN_ZOOM: u32 = 50;
 const MAX_ZOOM: u32 = 300;
 const DEFAULT_ZOOM: u32 = 100;
 
+/// How wide the notes sidebar is, in CSS pixels. Set by dragging its edge.
+///
+/// Narrower than the minimum and a note's text wraps a word to a line; wider
+/// than the maximum and there is little diff left on most screens. The window
+/// caps it again at half its width, which a stored number cannot know about.
+const MIN_NOTE_SIDEBAR_WIDTH: u32 = 240;
+const MAX_NOTE_SIDEBAR_WIDTH: u32 = 900;
+const DEFAULT_NOTE_SIDEBAR_WIDTH: u32 = 360;
+
 const FILE_NAME: &str = "settings.json";
 
 /// How a file's diff is laid out.
@@ -120,6 +129,16 @@ fn lenient_note_placement<'de, D: Deserializer<'de>>(
     })
 }
 
+/// Reads the sidebar width, treating anything that is not a number as unset —
+/// the same reasoning, and the same shape, as `lenient_zoom` below.
+fn lenient_sidebar_width<'de, D: Deserializer<'de>>(de: D) -> Result<u32, D::Error> {
+    let raw = serde_json::Value::deserialize(de)?;
+    Ok(raw
+        .as_f64()
+        .filter(|value| value.is_finite())
+        .map_or(DEFAULT_NOTE_SIDEBAR_WIDTH, |value| value.round() as u32))
+}
+
 /// Reads the zoom level, treating anything that is not a number as unset.
 ///
 /// The same reasoning as the two readers above: one unusable field must not
@@ -164,6 +183,10 @@ pub struct Settings {
     /// reads it.
     #[serde(default, deserialize_with = "lenient_note_placement")]
     pub note_placement: NotePlacement,
+    /// How wide the notes sidebar is, in CSS pixels, as the reader last
+    /// dragged it. No field-level `default`, for the reason given on `zoom`.
+    #[serde(deserialize_with = "lenient_sidebar_width")]
+    pub note_sidebar_width: u32,
 }
 
 impl Default for Settings {
@@ -174,6 +197,7 @@ impl Default for Settings {
             default_view_mode: ViewMode::Unified,
             zoom: DEFAULT_ZOOM,
             note_placement: NotePlacement::Overlay,
+            note_sidebar_width: DEFAULT_NOTE_SIDEBAR_WIDTH,
         }
     }
 }
@@ -187,6 +211,9 @@ impl Settings {
             default_view_mode: self.default_view_mode,
             zoom: self.zoom.clamp(MIN_ZOOM, MAX_ZOOM),
             note_placement: self.note_placement,
+            note_sidebar_width: self
+                .note_sidebar_width
+                .clamp(MIN_NOTE_SIDEBAR_WIDTH, MAX_NOTE_SIDEBAR_WIDTH),
         }
     }
 }
@@ -270,6 +297,38 @@ mod tests {
         assert_eq!(settings.default_view_mode, ViewMode::Unified);
         assert_eq!(settings.zoom, 100);
         assert_eq!(settings.note_placement, NotePlacement::Overlay);
+        assert_eq!(settings.note_sidebar_width, 360);
+    }
+
+    #[test]
+    fn the_sidebar_width_round_trips_and_is_clamped() {
+        let path = temp_dir("sidebar-width").join("settings.json");
+        let settings = Settings {
+            note_sidebar_width: 480,
+            ..Settings::default()
+        };
+
+        save_to(&path, settings).unwrap();
+        assert!(std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("\"noteSidebarWidth\": 480"));
+        assert_eq!(load_from(&path), settings);
+
+        std::fs::write(&path, r#"{"noteSidebarWidth": 10}"#).unwrap();
+        assert_eq!(load_from(&path).note_sidebar_width, 240);
+
+        std::fs::write(&path, r#"{"noteSidebarWidth": 1e9}"#).unwrap();
+        assert_eq!(load_from(&path).note_sidebar_width, 900);
+
+        // Missing means the default, not zero clamped up to the minimum.
+        std::fs::write(&path, r#"{"wrapLength": 90}"#).unwrap();
+        assert_eq!(load_from(&path).note_sidebar_width, 360);
+
+        // Unreadable costs only itself.
+        std::fs::write(&path, r#"{"noteSidebarWidth": "wide", "wrapLength": 90}"#).unwrap();
+        let settings = load_from(&path);
+        assert_eq!(settings.note_sidebar_width, 360);
+        assert_eq!(settings.wrap_length, 90);
     }
 
     #[test]
