@@ -36,6 +36,7 @@ import {
   hunksOfChange,
   labelChanges,
   stepChange,
+  stepWithinChange,
 } from './lib/noteMarkers.ts';
 import { throttle } from './lib/throttle.ts';
 import type { Direction } from './lib/navigation.ts';
@@ -291,8 +292,13 @@ export function App() {
   const [requestedChange, setRequestedChange] = useState<string | null>(null);
   const hunkChanges =
     currentHunk === null ? undefined : notedHunks[currentHunk]?.logicalChangeIds;
+  // Also kept while a step is still landing: a hunk in a file not read yet puts
+  // the cursor on that file's header until the diff arrives, and the header
+  // covers no change — so without this the bar would go blank mid-step.
+  const landing = currentHunk === null && navigation.navigating;
   const stepped =
-    requestedChange !== null && (hunkChanges?.includes(requestedChange) ?? false)
+    requestedChange !== null &&
+    (landing || (hunkChanges?.includes(requestedChange) ?? false))
       ? requestedChange
       : null;
 
@@ -314,33 +320,34 @@ export function App() {
 
   const changeHunk = currentHunk === null ? -1 : changeHunks.indexOf(currentHunk);
 
-  const stepHunkInChange = useCallback(
-    (delta: 1 | -1) => {
-      if (currentChange === null) return;
+  // Nothing to step from while a step is still landing: the cursor is on a
+  // file header until the diff arrives, and Next would read that as being off
+  // the change and start it again from the top.
+  const nextInChange = landing
+    ? null
+    : stepWithinChange(changeHunks, currentHunk, 'next');
+  const previousInChange = landing
+    ? null
+    : stepWithinChange(changeHunks, currentHunk, 'previous');
 
-      // Off the change's hunks altogether (only possible while focused, when
-      // the reader has clicked elsewhere): forward starts the change again.
-      const target =
-        changeHunk === -1
-          ? delta === 1
-            ? changeHunks[0]
-            : undefined
-          : changeHunks[changeHunk + delta];
-      if (target === undefined) return;
+  const stepHunkInChange = useCallback(
+    (target: string | null) => {
+      if (currentChange === null || target === null) return;
 
       revealHunk(target);
       setRequestedChange(currentChange);
     },
-    [changeHunk, changeHunks, currentChange, revealHunk],
+    [currentChange, revealHunk],
   );
 
-  const nextHunkInChange = useCallback(() => stepHunkInChange(1), [stepHunkInChange]);
-  const previousHunkInChange = useCallback(
-    () => stepHunkInChange(-1),
-    [stepHunkInChange],
+  const nextHunkInChange = useCallback(
+    () => stepHunkInChange(nextInChange),
+    [nextInChange, stepHunkInChange],
   );
-  const canGoNextHunk = changeHunks.length > 0 && changeHunk < changeHunks.length - 1;
-  const canGoPreviousHunk = changeHunk > 0;
+  const previousHunkInChange = useCallback(
+    () => stepHunkInChange(previousInChange),
+    [previousInChange, stepHunkInChange],
+  );
 
   const changePosition = changes.findIndex((entry) => entry.id === currentChange);
 
@@ -450,8 +457,8 @@ export function App() {
           canGoPrevious={previousChange !== null}
           hunkPosition={changeHunk === -1 ? null : changeHunk + 1}
           hunkTotal={changeHunks.length}
-          canGoNextHunk={canGoNextHunk}
-          canGoPreviousHunk={canGoPreviousHunk}
+          canGoNextHunk={nextInChange !== null}
+          canGoPreviousHunk={previousInChange !== null}
           onOpenContents={() => setNoteDialog({ kind: 'contents' })}
           onOpenChange={() => {
             if (currentChange !== null) {

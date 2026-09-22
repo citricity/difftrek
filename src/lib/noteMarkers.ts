@@ -82,6 +82,32 @@ export function hunksOfChange(
 }
 
 /**
+ * Where the change bar's hunk arrows go: the next or previous hunk of one
+ * logical change, or null where there is none.
+ *
+ * The walk stops at the change's ends rather than carrying on into the next
+ * change — that is the other pair of arrows' job, and two pairs that both
+ * crossed would be one control drawn twice.
+ *
+ * A reader who is off the change's hunks altogether (only possible while it is
+ * focused and they have clicked elsewhere) has no place in the walk, so Next
+ * starts it again from the top and Previous has nowhere to go.
+ */
+export function stepWithinChange(
+  changeHunks: readonly string[],
+  currentHunk: string | null,
+  direction: Direction,
+): string | null {
+  const at = currentHunk === null ? -1 : changeHunks.indexOf(currentHunk);
+
+  if (at === -1) {
+    return direction === 'next' ? (changeHunks[0] ?? null) : null;
+  }
+
+  return changeHunks[direction === 'next' ? at + 1 : at - 1] ?? null;
+}
+
+/**
  * The file a hunk id belongs to.
  *
  * Hunk ids are `<path>:hunk:<index>`, which `CLAUDE.md` names as the model's

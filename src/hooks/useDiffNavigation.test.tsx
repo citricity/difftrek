@@ -248,4 +248,44 @@ describe('useDiffNavigation', () => {
       expect(result.current.current).toBeNull();
     });
   });
+
+  // What the change bar's arrows, the contents list and the gutter markers all
+  // reach for: one particular hunk, often in a file nobody has scrolled to.
+  describe('goToHunk', () => {
+    it('lands on the header of an unread file at once, then on the hunk', async () => {
+      const loader = loaderFor(makeDiff('b.ts', 3));
+      const { result } = setup([loadedFile('a.ts', 1), pendingFile('b.ts')], loader);
+
+      act(() => result.current.goToHunk('b.ts', 'b.ts:hunk:2'));
+      expect(result.current.current).toEqual({ fileId: 'b.ts', hunkId: null });
+      expect(result.current.navigating).toBe(true);
+
+      await waitFor(() =>
+        expect(result.current.current).toEqual({
+          fileId: 'b.ts',
+          hunkId: 'b.ts:hunk:2',
+        }),
+      );
+      expect(result.current.navigating).toBe(false);
+      expect(loader).toHaveBeenCalledWith('b.ts');
+    });
+
+    it('stays on the header when the loaded file lacks the hunk', async () => {
+      const loader = loaderFor(makeDiff('b.ts', 1));
+      const { result } = setup([loadedFile('a.ts', 1), pendingFile('b.ts')], loader);
+
+      act(() => result.current.goToHunk('b.ts', 'b.ts:hunk:4'));
+
+      await waitFor(() => expect(result.current.navigating).toBe(false));
+      expect(result.current.current).toEqual({ fileId: 'b.ts', hunkId: null });
+    });
+
+    it('goes straight to a hunk in a file already read', () => {
+      const { result } = setup([loadedFile('a.ts', 1), loadedFile('b.ts', 2)]);
+
+      act(() => result.current.goToHunk('b.ts', 'b.ts:hunk:1'));
+      expect(result.current.current).toEqual({ fileId: 'b.ts', hunkId: 'b.ts:hunk:1' });
+      expect(result.current.navigating).toBe(false);
+    });
+  });
 });
