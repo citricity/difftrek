@@ -10,7 +10,14 @@ import type { Settings, ZoomDirection } from '../types/index.ts';
 import type { SettingsState } from './useSettings.ts';
 
 const canZoomWindow = vi.fn<() => Promise<boolean>>();
-let requested: (direction: ZoomDirection) => void = () => undefined;
+/**
+ * The handler the hook subscribed with, or null before it has.
+ *
+ * Null rather than a no-op, and cleared between tests, because a test that
+ * fired into a stale handler from the previous one passed or failed depending
+ * on the timing of a promise nobody was waiting for.
+ */
+let requested: ((direction: ZoomDirection) => void) | null = null;
 
 vi.mock('../services/backend.ts', () => ({
   canZoomWindow: () => canZoomWindow(),
@@ -41,6 +48,7 @@ function settingsState(settings: Settings = DEFAULT_SETTINGS): SettingsState & {
 }
 
 beforeEach(() => {
+  requested = null;
   canZoomWindow.mockResolvedValue(true);
 });
 
@@ -73,9 +81,10 @@ describe('zoom', () => {
   it('answers the View menu with the same steps', async () => {
     const state = settingsState();
     renderHook(() => useZoom(state));
-    await waitFor(() => expect(requested).toBeDefined());
+    await waitFor(() => expect(requested).not.toBeNull());
 
-    act(() => requested('out'));
+    const handler = requested as unknown as (direction: ZoomDirection) => void;
+    act(() => handler('out'));
 
     expect(state.updates).toEqual([{ zoom: 90 }]);
   });
