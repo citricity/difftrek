@@ -1,0 +1,219 @@
+/**
+ * Notes in a sidebar, in a real browser.
+ *
+ * What only a layout can show: that the diff narrows to make room rather than
+ * being covered, that nothing is made inert while a note is open, that the
+ * note follows the cursor, that dragging the edge resizes it and the width
+ * sticks, and that Escape closes it.
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Page } from 'playwright';
+import { startApp } from './harness.ts';
+import type { App } from './harness.ts';
+
+declare global {
+  // Added to the page by `POSITION_IN_PAGE`, so a wait can read the toolbar.
+  function position(): string;
+}
+
+let app: App;
+let page: Page;
+
+const sidebar = () => page.locator('aside');
+
+/**
+ * The toolbar's readout of which hunk of the whole diff is current, as a
+ * string like "2 / 6". Declared in the page too, for `waitForFunction`.
+ */
+const POSITION_IN_PAGE = `window.position = () =>
+  [...document.querySelectorAll('span')]
+    .map((span) => span.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+    .find((text) => /^[–\\d]+ \\/ \\d+$/.test(text)) ?? '';`;
+
+const globalPosition = (): Promise<string> => page.evaluate(() => position());
+
+/** The right edge of the diff's scrolling viewport, in CSS pixels. */
+async function documentRight(): Promise<number> {
+  return page.evaluate(() => {
+    const row = document.querySelector('[data-row]');
+    const viewport = row?.closest('[class*="viewport"]');
+    return viewport?.getBoundingClientRect().right ?? Number.NaN;
+  });
+}
+
+beforeAll(async () => {
+  app = await startApp(4186);
+  page = await app.open({ width: 1200, height: 700 });
+  await page.addScriptTag({ content: POSITION_IN_PAGE });
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel(/AI changelog notes/).selectOption('sidebar');
+  await page.getByRole('button', { name: 'Close settings' }).click();
+}, 180000);
+
+afterAll(async () => {
+  await app?.close();
+});
+
+describe('notes in a sidebar', () => {
+  it('opens beside the diff, which narrows to make room', async () => {
+    const before = await documentRight();
+
+    await page
+      .getByRole('button', { name: /^Why this hunk exists/ })
+      .first()
+      .click();
+    await sidebar().waitFor();
+
+    const box = await sidebar().boundingBox();
+    const after = await documentRight();
+
+    expect(box).not.toBeNull();
+    expect(after).toBeLessThan(before);
+    // Beside, not over: the diff ends where the sidebar begins.
+    expect(after).toBeLessThanOrEqual(Math.ceil(box!.x));
+    expect(await page.locator('dialog[open]').count()).toBe(0);
+  });
+
+  it('leaves the diff usable while it is open', async () => {
+    // A change's letter in the gutter swaps the note in place, without
+    // closing first.
+    await page
+      .getByRole('button', { name: /^Logical change A/ })
+      .first()
+      .click();
+    await sidebar()
+      .getByRole('heading', { name: /Logical change/ })
+      .waitFor();
+
+    expect(await sidebar().count()).toBe(1);
+
+    // Stepping still works — the document is not inert.
+    const readout = () =>
+      page.evaluate(() => document.querySelector('header')?.textContent ?? '');
+    const was = await readout();
+    await page.locator('[data-row]').first().click();
+    await page.keyboard.press('n');
+    await page.waitForFunction(
+      (text) => document.querySelector('header')?.textContent !== text,
+      was,
+    );
+    expect(await sidebar().count()).toBe(1);
+  });
+
+  it('takes the cursor to the hunk whose icon was clicked', async () => {
+    // Otherwise Next/Previous — and the note that follows them — carry on
+    // from wherever the cursor was left, a hunk behind the one being read.
+    const icons = page.getByRole('button', { name: /^Why this hunk exists/ });
+
+    await icons.first().click();
+    await sidebar().waitFor();
+    const first = await globalPosition();
+
+    // A different hunk's icon: the cursor goes there rather than staying.
+    await icons.nth(1).click();
+    await page.waitForFunction((was) => position() !== was, first);
+    const second = await globalPosition();
+
+    // And stepping carries on from it, the note following along.
+    const note = await sidebar().textContent();
+    await page.keyboard.press('n');
+    await page.waitForFunction(
+      (text) => document.querySelector('aside')?.textContent !== text,
+      note,
+    );
+    expect(await globalPosition()).not.toBe(second);
+  });
+
+  it('follows the reader from hunk to hunk', async () => {
+    await page
+      .getByRole('button', { name: /^Why this hunk exists/ })
+      .first()
+      .click();
+    await sidebar().waitFor();
+    const was = await sidebar().textContent();
+
+    await page.keyboard.press('n');
+    await page.waitForFunction(
+      (text) => document.querySelector('aside')?.textContent !== text,
+      was,
+    );
+
+    // Still a hunk note, now about a different hunk.
+    expect(await sidebar().textContent()).not.toBe(was);
+  });
+
+  it('walks a change from the hunks listed under it', async () => {
+    // The list was taken out of this note when it was a dialog over the diff,
+    // because it sent the reader to hunks the dialog was covering. Docked, it
+    // is the pointer equivalent of the change bar's hunk arrows.
+    await page
+      .getByRole('button', { name: /^Logical change A/ })
+      .first()
+      .click();
+    await sidebar()
+      .getByRole('heading', { name: /Logical change/ })
+      .waitFor();
+
+    const rows = sidebar().locator('ol button');
+    const marked = await rows.evaluateAll((buttons) =>
+      buttons.findIndex((button) => button.getAttribute('aria-current') === 'true'),
+    );
+    expect(await rows.count()).toBeGreaterThan(1);
+    expect(marked).toBeGreaterThanOrEqual(0);
+
+    // Any row but the one the reader is already on.
+    const target = marked === 0 ? (await rows.count()) - 1 : 0;
+    const before = await globalPosition();
+    await rows.nth(target).click();
+    await page.waitForFunction((was) => position() !== was, before);
+
+    // Still the change's note, with the walk shown in the list.
+    await sidebar()
+      .getByRole('heading', { name: /Logical change/ })
+      .waitFor();
+    expect(await rows.nth(target).getAttribute('aria-current')).toBe('true');
+  });
+
+  it('is resized by dragging its edge, and holds that width', async () => {
+    const edge = page.getByRole('separator', { name: 'Resize the notes sidebar' });
+    const start = (await sidebar().boundingBox())!;
+    const handle = (await edge.boundingBox())!;
+
+    await page.mouse.move(handle.x + 2, handle.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 60, handle.y + 200, { steps: 5 });
+    await page.mouse.move(handle.x - 118, handle.y + 200, { steps: 5 });
+    await page.mouse.up();
+
+    const widened = (await sidebar().boundingBox())!;
+    expect(Math.abs(widened.width - (start.width + 120))).toBeLessThanOrEqual(2);
+
+    // The diff still ends where the sidebar begins.
+    expect(await documentRight()).toBeLessThanOrEqual(Math.ceil(widened.x));
+
+    // Closed and opened again, it comes back at the width it was left at.
+    // (That the width reaches settings.json is the fixture's business and the
+    // Rust side's; the example backend forgets on reload, so this window is as
+    // far as a browser test can follow it.)
+    await page.keyboard.press('Escape');
+    await sidebar().waitFor({ state: 'detached' });
+    await page
+      .getByRole('button', { name: /^Why this hunk exists/ })
+      .first()
+      .click();
+    await sidebar().waitFor();
+    expect(Math.round((await sidebar().boundingBox())!.width)).toBe(
+      Math.round(widened.width),
+    );
+  });
+
+  it('closes on Escape and gives the diff its width back', async () => {
+    await page.keyboard.press('Escape');
+    await sidebar().waitFor({ state: 'detached' });
+
+    expect(await documentRight()).toBeGreaterThan(1100);
+    expect(app.pageErrors).toEqual([]);
+  });
+});

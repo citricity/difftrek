@@ -45,4 +45,16 @@ describe('SettingsDialog', () => {
     fireEvent.change(mode, { target: { value: 'auto' } });
     expect(update).toHaveBeenCalledWith({ wrap: 'auto' });
   });
+
+  it('moves the notes into a sidebar when asked', () => {
+    const { update } = renderWith('off');
+    const placement = screen.getByLabelText<HTMLSelectElement>(/AI changelog notes/);
+
+    expect(placement.value).toBe('overlay');
+    fireEvent.change(placement, { target: { value: 'sidebar' } });
+    expect(update).toHaveBeenCalledWith({ notePlacement: 'sidebar' });
+
+    fireEvent.change(placement, { target: { value: 'topbar' } });
+    expect(update).toHaveBeenCalledWith({ notePlacement: 'topbar' });
+  });
 });

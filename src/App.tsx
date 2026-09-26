@@ -38,6 +38,8 @@ import {
   stepChange,
   stepWithinChange,
 } from './lib/noteMarkers.ts';
+import { followNote } from './lib/openNote.ts';
+import type { NoteCursor } from './lib/openNote.ts';
 import { throttle } from './lib/throttle.ts';
 import type { Direction } from './lib/navigation.ts';
 import type { ResolvedHunk, ViewMode } from './types/index.ts';
@@ -185,8 +187,60 @@ export function App() {
 
   const navigation = useDiffNavigation(state.files, ensureLoaded, navigationFilter);
 
+  // Taken out of the object, which `useDiffNavigation` rebuilds every render:
+  // a callback keyed on the whole of it is a new callback every render, and
+  // `documentNotes` below — which reaches every rendered row — is built from
+  // one of those.
+  const { goToHunk } = navigation;
+
   /** Which note dialog is open, if any. */
   const [noteDialog, setNoteDialog] = useState<NoteDialog>(null);
+
+  /**
+   * Whether notes open docked — in a sidebar beside the diff or a bar above
+   * it — rather than over it.
+   *
+   * Docked notes are not modal, so the diff can still be read and stepped
+   * while one is open — which changes what a few actions should do: going
+   * somewhere from the contents list no longer has a reason to close it.
+   */
+  const notePlacement = settingsState.settings.notePlacement;
+  const notesDocked = notePlacement !== 'overlay';
+
+  /**
+   * The sidebar's width while its edge is being dragged, and null otherwise.
+   *
+   * Held here for the length of the drag and saved once when it ends, so the
+   * settings file is written for the width the reader settled on rather than
+   * for every frame on the way to it.
+   */
+  const [draggedWidth, setDraggedWidth] = useState<number | null>(null);
+  // Dropped as soon as the panel closes: a drag the panel does not outlive —
+  // Escape, a reloaded changelog, a change of placement — never reaches its own
+  // release, and the width it was passing through would otherwise shadow the
+  // stored one for the rest of the session.
+  if (noteDialog === null && draggedWidth !== null) setDraggedWidth(null);
+
+  const sidebarWidth = draggedWidth ?? settingsState.settings.noteSidebarWidth;
+  const { update: updateSettings } = settingsState;
+
+  /**
+   * A drag the panel does not outlive — Escape, a reloaded changelog, a change
+   * of placement — never reaches its own release, so the width it was passing
+   * through would otherwise shadow the stored one for the rest of the session.
+   */
+  const resizeSidebar = useCallback(
+    (width: number, done: boolean) => {
+      if (!done) {
+        setDraggedWidth(width);
+        return;
+      }
+
+      setDraggedWidth(null);
+      updateSettings({ noteSidebarWidth: width });
+    },
+    [updateSettings],
+  );
 
   /**
    * Reveals a hunk that may be in a file nobody has opened yet — the file
@@ -194,9 +248,9 @@ export function App() {
    */
   const revealHunk = useCallback(
     (hunkId: string) => {
-      navigation.goToHunk(fileOfHunk(hunkId), hunkId);
+      goToHunk(fileOfHunk(hunkId), hunkId);
     },
-    [navigation],
+    [goToHunk],
   );
 
 
@@ -258,28 +312,6 @@ export function App() {
     [changelog, labelOf],
   );
 
-  const documentNotes = useMemo(() => {
-    if (changelog.changelog === null) return null;
-
-    return {
-      hunks: changelog.changelog.hunks,
-      state: changelog.state,
-      labelOf,
-      describe: changelog.describe,
-      onOpenHunk: (hunkId: string) => setNoteDialog({ kind: 'hunk', hunkId }),
-      // A badge names one change, and the reader has just said which: it
-      // becomes the bar's current change, so a hunk serving two intents shows
-      // the one clicked rather than the first. The cursor is left where it is
-      // — the reader is looking at the code, and moving it would scroll.
-      onOpenChange: (changeId: string) => {
-        setRequestedChange(changeId);
-        setNoteDialog({ kind: 'change', changeId });
-      },
-    };
-  }, [changelog, labelOf]);
-
-  const currentHunk = navigation.current?.hunkId ?? null;
-
   /**
    * The change the reader stepped to, which only the reader can say.
    *
@@ -290,6 +322,49 @@ export function App() {
    * to naming what is under the cursor.
    */
   const [requestedChange, setRequestedChange] = useState<string | null>(null);
+
+  /**
+   * Picking a logical change's letter in the gutter.
+   *
+   * The cursor moves to the hunk the letter was drawn on, and that change
+   * becomes the bar's current one — so a hunk serving two intents shows the
+   * one picked rather than the first. Selecting a change and being left
+   * standing somewhere else was the confusing half of this (Guy); jumping to
+   * the change's first hunk instead would be the other, since it can be in
+   * another file, away from the marker just clicked.
+   */
+  const openChangeFromGutter = useCallback(
+    (changeId: string, hunkId?: string) => {
+      if (hunkId !== undefined) revealHunk(hunkId);
+
+      setRequestedChange(changeId);
+      setNoteDialog({ kind: 'change', changeId });
+    },
+    [revealHunk],
+  );
+
+  const documentNotes = useMemo(() => {
+    if (changelog.changelog === null) return null;
+
+    return {
+      hunks: changelog.changelog.hunks,
+      state: changelog.state,
+      labelOf,
+      describe: changelog.describe,
+      // The cursor goes to the hunk whose icon was clicked, as it does for a
+      // change's letter. Without that, Next/Previous — and the note that
+      // follows them — carry on from wherever the cursor was left, a hunk
+      // behind the one being read (Guy).
+      onOpenHunk: (hunkId: string) => {
+        revealHunk(hunkId);
+        setNoteDialog({ kind: 'hunk', hunkId });
+      },
+      onOpenChange: openChangeFromGutter,
+    };
+  }, [changelog, labelOf, openChangeFromGutter, revealHunk]);
+
+  const currentHunk = navigation.current?.hunkId ?? null;
+
   const hunkChanges =
     currentHunk === null ? undefined : notedHunks[currentHunk]?.logicalChangeIds;
   // Also kept while a step is still landing: a hunk in a file not read yet puts
@@ -304,6 +379,27 @@ export function App() {
 
   const currentChange =
     focused ?? stepped ?? changeOfHunk(notedHunks, currentHunk);
+
+  /**
+   * A docked note follows the reader: step or scroll onto another hunk and a
+   * hunk note shows that hunk; move into another change and a change note
+   * shows that change.
+   *
+   * Adjusted during render against the cursor it last saw, rather than in an
+   * effect, so the note never paints a frame about the hunk just left. Only
+   * when docked — the overlay is modal, and the cursor cannot move under it.
+   */
+  const [lastCursor, setLastCursor] = useState<NoteCursor>({
+    hunkId: currentHunk,
+    changeId: currentChange,
+  });
+  if (lastCursor.hunkId !== currentHunk || lastCursor.changeId !== currentChange) {
+    const nextCursor = { hunkId: currentHunk, changeId: currentChange };
+    setLastCursor(nextCursor);
+    if (notesDocked) {
+      setNoteDialog((note) => followNote(note, lastCursor, nextCursor));
+    }
+  }
 
   /**
    * The hunks of the change in view, and which of them the reader is on: what
@@ -392,6 +488,15 @@ export function App() {
     [goToChange],
   );
 
+  const closeDockedNote = useCallback(() => setNoteDialog(null), []);
+  const clearFocus = useCallback(() => setFocused(null), []);
+  const escape =
+    notesDocked && noteDialog !== null
+      ? closeDockedNote
+      : focused === null
+        ? undefined
+        : clearFocus;
+
   useKeyboardShortcuts({
     onNext: navigation.goNext,
     onPrevious: navigation.goPrevious,
@@ -399,7 +504,10 @@ export function App() {
     onPreviousChange: changes.length === 0 ? undefined : goToPreviousChange,
     onNextHunkInChange: currentChange === null ? undefined : nextHunkInChange,
     onPreviousHunkInChange: currentChange === null ? undefined : previousHunkInChange,
-    onEscape: focused === null ? undefined : () => setFocused(null),
+    // A docked note goes first: it is the nearer thing to escape from, and a
+    // second press then clears the focus. A modal dialog handles its own
+    // Escape, which the hook already leaves alone.
+    onEscape: escape,
     onZoomIn: zoom.zoomIn,
     onZoomOut: zoom.zoomOut,
     onZoomReset: zoom.resetZoom,
@@ -410,6 +518,58 @@ export function App() {
       void loadFully(fileId);
     },
     [loadFully],
+  );
+
+  /**
+   * The notes, wherever Settings puts them: a dialog over the diff, a sidebar
+   * beside it (both mounted inside the document's row), or a bar above it
+   * (mounted before that row, under the change bar).
+   */
+  const noteView = changelog.changelog !== null && (
+    <NoteDialogs
+      open={noteDialog}
+      notes={notes}
+      order={notedOrder}
+      onClose={() => setNoteDialog(null)}
+      onOpenChange={(changeId: string, hunkId?: string) => {
+        // Asked from a hunk the reader is already on, the answer is the
+        // change itself, read in place. Yanking them to the change's first
+        // hunk would throw away the one piece of context they had.
+        if (hunkId !== undefined) {
+          setRequestedChange(changeId);
+          setNoteDialog({ kind: 'change', changeId });
+          return;
+        }
+
+        // Asked from the contents list, where no hunk is in play: the
+        // change's first hunk is the only sensible place to land.
+        const entry = changes.find((candidate) => candidate.id === changeId);
+        if (entry !== undefined) {
+          revealHunk(entry.hunkId);
+          setRequestedChange(changeId);
+        }
+        // Beside the diff the list stays open, to be used again: the whole
+        // point of docking it is that the code it jumps to is visible.
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      focused={focused}
+      currentChange={currentChange}
+      onFocus={(changeId) => {
+        setFocused(changeId);
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      placement={notePlacement}
+      currentHunk={currentHunk}
+      onGoToHunk={(hunkId) => {
+        revealHunk(hunkId);
+        // The note stays on the change: walking its hunks is what the list is
+        // for, and `followNote` moves a change note only when the change
+        // itself changes.
+        setRequestedChange(currentChange);
+      }}
+      sidebarWidth={sidebarWidth}
+      onSidebarResize={resizeSidebar}
+    />
   );
 
   if (state.phase === 'failed' && state.error !== null) {
@@ -475,65 +635,37 @@ export function App() {
         />
       )}
 
-      <DiffDocument
-        files={state.files}
-        model={model}
-        metrics={metrics}
-        loading={state.phase === 'starting'}
-        comparison={
-          state.repository === null
-            ? undefined
-            : (state.repository.comparison?.label ?? null)
-        }
-        current={navigation.current}
-        revealRequest={navigation.revealRequest}
-        onSelect={navigation.goTo}
-        onScrollToChange={navigation.goTo}
-        onSelectFile={navigation.goToFile}
-        onVisibleFileChange={prefetchAround}
-        onToggleCollapse={toggleCollapse}
-        onLoadFully={handleLoadFully}
-        onExpandContext={revealContext}
-        wrapColumn={wrapColumn}
-        viewMode={viewMode}
-        onViewportWidthChange={reportViewportWidth}
-        notes={documentNotes}
-        navigationFilter={navigationFilter}
-      />
+      {notePlacement === 'topbar' && noteView}
 
-      {changelog.changelog !== null && (
-        <NoteDialogs
-          open={noteDialog}
-          notes={notes}
-          order={notedOrder}
-          onClose={() => setNoteDialog(null)}
-          onOpenChange={(changeId: string, hunkId?: string) => {
-            // Asked from a hunk the reader is already on, the answer is the
-            // change itself, read in place. Yanking them to the change's first
-            // hunk would throw away the one piece of context they had.
-            if (hunkId !== undefined) {
-              setRequestedChange(changeId);
-              setNoteDialog({ kind: 'change', changeId });
-              return;
-            }
-
-            // Asked from the contents list, where no hunk is in play: the
-            // change's first hunk is the only sensible place to land.
-            const entry = changes.find((candidate) => candidate.id === changeId);
-            if (entry !== undefined) {
-              revealHunk(entry.hunkId);
-              setRequestedChange(changeId);
-            }
-            setNoteDialog(null);
-          }}
-          focused={focused}
-          currentChange={currentChange}
-          onFocus={(changeId) => {
-            setFocused(changeId);
-            setNoteDialog(null);
-          }}
+      <div className={styles.main}>
+        <DiffDocument
+          files={state.files}
+          model={model}
+          metrics={metrics}
+          loading={state.phase === 'starting'}
+          comparison={
+            state.repository === null
+              ? undefined
+              : (state.repository.comparison?.label ?? null)
+          }
+          current={navigation.current}
+          revealRequest={navigation.revealRequest}
+          onSelect={navigation.goTo}
+          onScrollToChange={navigation.goTo}
+          onSelectFile={navigation.goToFile}
+          onVisibleFileChange={prefetchAround}
+          onToggleCollapse={toggleCollapse}
+          onLoadFully={handleLoadFully}
+          onExpandContext={revealContext}
+          wrapColumn={wrapColumn}
+          viewMode={viewMode}
+          onViewportWidthChange={reportViewportWidth}
+          notes={documentNotes}
+          navigationFilter={navigationFilter}
         />
-      )}
+
+        {notePlacement !== 'topbar' && noteView}
+      </div>
     </div>
   );
 }

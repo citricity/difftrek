@@ -29,6 +29,17 @@ export type WrapMode = 'off' | 'column' | 'auto';
  */
 export type ZoomDirection = 'in' | 'out' | 'reset';
 
+/**
+ * Where the AI changelog's notes open. Mirrors `NotePlacement` in
+ * `settings.rs`.
+ *
+ * `overlay` is a modal dialog over the diff; `sidebar` is a panel down the
+ * right-hand side, and `topbar` a band across the top under the change bar —
+ * the one to use with the split view, where a sidebar would squeeze both
+ * panes. Both docked placements leave the code in view and usable.
+ */
+export type NotePlacement = 'overlay' | 'sidebar' | 'topbar';
+
 export interface Settings {
   /** Whether long lines wrap rather than scrolling horizontally, and where. */
   wrap: WrapMode;
@@ -50,6 +61,13 @@ export interface Settings {
    * zoom, so nothing on this side scales anything itself.
    */
   zoom: number;
+  /** Where the AI changelog's notes open: over the diff, beside it, or above it. */
+  notePlacement: NotePlacement;
+  /**
+   * How wide the notes sidebar is, in CSS pixels, as it was last dragged.
+   * The window caps it again at half its width.
+   */
+  noteSidebarWidth: number;
 }
 
 /**
@@ -61,6 +79,8 @@ export const DEFAULT_SETTINGS: Settings = {
   wrapLength: 120,
   defaultViewMode: 'unified',
   zoom: 100,
+  notePlacement: 'overlay',
+  noteSidebarWidth: 360,
 };
 
 /** The range the backend will accept; the dialog holds the input to it too. */
@@ -70,3 +90,7 @@ export const MAX_WRAP_LENGTH = 1000;
 /** The same for the zoom level, in per cent. The ladder spans exactly this. */
 export const MIN_ZOOM = 50;
 export const MAX_ZOOM = 300;
+
+/** The sidebar width the backend will store, in CSS pixels. */
+export const MIN_NOTE_SIDEBAR_WIDTH = 240;
+export const MAX_NOTE_SIDEBAR_WIDTH = 900;
