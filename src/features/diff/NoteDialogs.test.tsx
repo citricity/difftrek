@@ -359,10 +359,11 @@ describe('in the sidebar', () => {
     expect(screen.queryByText(/read from the database/)).not.toBeInTheDocument();
   });
 
-  it('gives focus back to whatever opened it', async () => {
-    // The overlay gets this from `showModal`; docked, closing the panel from
-    // its own button would otherwise drop focus on the body and restart
-    // tabbing at the top of the app.
+  it('gives focus back to whatever opened it, however it was closed', async () => {
+    // The overlay gets this from `showModal`; docked, focus would otherwise
+    // land on the body and tabbing would restart at the top of the app. It
+    // happens on the close itself, so Escape — which the app's shortcuts
+    // handle, not this button — hands focus back too.
     const hunk = resolved();
     const marker = document.createElement('button');
     document.body.append(marker);
@@ -382,6 +383,10 @@ describe('in the sidebar', () => {
     rerender(props({ kind: 'hunk', hunkId: hunk.hunkId }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(document.activeElement).not.toBe(marker);
+
+    // The parent closing it — what Escape does — is what hands focus back.
+    rerender(props(null));
     expect(document.activeElement).toBe(marker);
     marker.remove();
   });

@@ -42,6 +42,15 @@ describe('followNote', () => {
     expect(followNote(note, at('h0', '0'), at('h0', '1'))).toBe(note);
   });
 
+  it('comes back with a reader who steps back to an earlier hunk', () => {
+    const note: NoteDialog = { kind: 'hunk', hunkId: 'h0' };
+    const moved = followNote(note, at('h0'), at('h1'));
+    expect(followNote(moved, at('h1'), at('h0'))).toEqual({
+      kind: 'hunk',
+      hunkId: 'h0',
+    });
+  });
+
   it('never changes the contents list or an empty sidebar', () => {
     const contents: NoteDialog = { kind: 'contents' };
     expect(followNote(contents, at('h0', '0'), at('h1', '1'))).toBe(contents);

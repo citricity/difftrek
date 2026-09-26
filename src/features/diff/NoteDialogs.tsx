@@ -13,7 +13,7 @@
  * shortcuts there, since there is no `<dialog>` to raise `close`.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Crosshair, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
@@ -100,17 +100,21 @@ export function NoteDialogs({
       opener.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
     }
+
+    // Closing is where focus is handed back, however it was closed — the panel's
+    // own button, or Escape, which the app's shortcuts handle and which would
+    // otherwise leave focus on the body with tabbing restarting at the top.
+    // Only from the body, so a reader who has clicked into the diff keeps it.
+    if (open === null && wasOpen.current && placement !== 'overlay') {
+      const back = opener.current;
+      const idle =
+        document.activeElement === null || document.activeElement === document.body;
+      // Gone if the row it was drawn on has been virtualised away since.
+      if (idle && back !== null && back.isConnected) back.focus();
+    }
+
     wasOpen.current = open !== null;
-  }, [open]);
-
-  const closeDocked = useCallback(() => {
-    const back = opener.current;
-    onClose();
-    // Gone if the row it was drawn on has been virtualised away since.
-    if (back !== null && back.isConnected) back.focus();
-  }, [onClose]);
-
-  const close = placement === 'overlay' ? onClose : closeDocked;
+  }, [open, placement]);
 
   // Re-run on a change of placement as well: switching to the overlay while a
   // note is open mounts a fresh `<dialog>` that has not been shown yet.
@@ -142,7 +146,7 @@ export function NoteDialogs({
           hunkId={open.hunkId}
           notes={notes}
           docked={placement !== 'overlay'}
-          onClose={close}
+          onClose={onClose}
           onOpenChange={onOpenChange}
         />
       )}
@@ -153,7 +157,7 @@ export function NoteDialogs({
           order={order}
           current={currentChange}
           focused={focused}
-          onClose={close}
+          onClose={onClose}
           onGoTo={(changeId) => {
             onOpenChange(changeId);
           }}
@@ -172,7 +176,7 @@ export function NoteDialogs({
           order={placement === 'overlay' ? null : order}
           currentHunk={currentHunk}
           onGoToHunk={onGoToHunk}
-          onClose={close}
+          onClose={onClose}
         />
       )}
     </>
@@ -330,7 +334,11 @@ function SidebarEdge({
     if (step === 0) return;
 
     event.preventDefault();
-    keyed.current = clamp(event.currentTarget, width + step);
+    // From the width as drawn, not the stored one: where the window has capped
+    // the sidebar, stepping from the stored width would jump rather than move.
+    const drawn =
+      event.currentTarget.closest('aside')?.getBoundingClientRect().width || width;
+    keyed.current = clamp(event.currentTarget, drawn + step);
     onResize(keyed.current, false);
   };
 
