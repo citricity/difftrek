@@ -351,10 +351,17 @@ export function App() {
       state: changelog.state,
       labelOf,
       describe: changelog.describe,
-      onOpenHunk: (hunkId: string) => setNoteDialog({ kind: 'hunk', hunkId }),
+      // The cursor goes to the hunk whose icon was clicked, as it does for a
+      // change's letter. Without that, Next/Previous — and the note that
+      // follows them — carry on from wherever the cursor was left, a hunk
+      // behind the one being read (Guy).
+      onOpenHunk: (hunkId: string) => {
+        revealHunk(hunkId);
+        setNoteDialog({ kind: 'hunk', hunkId });
+      },
       onOpenChange: openChangeFromGutter,
     };
-  }, [changelog, labelOf, openChangeFromGutter]);
+  }, [changelog, labelOf, openChangeFromGutter, revealHunk]);
 
   const currentHunk = navigation.current?.hunkId ?? null;
 

@@ -12,10 +12,26 @@ import type { Page } from 'playwright';
 import { startApp } from './harness.ts';
 import type { App } from './harness.ts';
 
+declare global {
+  // Added to the page by `POSITION_IN_PAGE`, so a wait can read the toolbar.
+  function position(): string;
+}
+
 let app: App;
 let page: Page;
 
 const sidebar = () => page.locator('aside');
+
+/**
+ * The toolbar's readout of which hunk of the whole diff is current, as a
+ * string like "2 / 6". Declared in the page too, for `waitForFunction`.
+ */
+const POSITION_IN_PAGE = `window.position = () =>
+  [...document.querySelectorAll('span')]
+    .map((span) => span.textContent?.replace(/\\s+/g, ' ').trim() ?? '')
+    .find((text) => /^[–\\d]+ \\/ \\d+$/.test(text)) ?? '';`;
+
+const globalPosition = (): Promise<string> => page.evaluate(() => position());
 
 /** The right edge of the diff's scrolling viewport, in CSS pixels. */
 async function documentRight(): Promise<number> {
@@ -29,6 +45,7 @@ async function documentRight(): Promise<number> {
 beforeAll(async () => {
   app = await startApp(4186);
   page = await app.open({ width: 1200, height: 700 });
+  await page.addScriptTag({ content: POSITION_IN_PAGE });
 
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByLabel(/AI changelog notes/).selectOption('sidebar');
@@ -85,14 +102,36 @@ describe('notes in a sidebar', () => {
     expect(await sidebar().count()).toBe(1);
   });
 
+  it('takes the cursor to the hunk whose icon was clicked', async () => {
+    // Otherwise Next/Previous — and the note that follows them — carry on
+    // from wherever the cursor was left, a hunk behind the one being read.
+    const icons = page.getByRole('button', { name: /^Why this hunk exists/ });
+
+    await icons.first().click();
+    await sidebar().waitFor();
+    const first = await globalPosition();
+
+    // A different hunk's icon: the cursor goes there rather than staying.
+    await icons.nth(1).click();
+    await page.waitForFunction((was) => position() !== was, first);
+    const second = await globalPosition();
+
+    // And stepping carries on from it, the note following along.
+    const note = await sidebar().textContent();
+    await page.keyboard.press('n');
+    await page.waitForFunction(
+      (text) => document.querySelector('aside')?.textContent !== text,
+      note,
+    );
+    expect(await globalPosition()).not.toBe(second);
+  });
+
   it('follows the reader from hunk to hunk', async () => {
     await page
       .getByRole('button', { name: /^Why this hunk exists/ })
       .first()
       .click();
-    await sidebar()
-      .getByText(/reading it from the DOM/)
-      .waitFor();
+    await sidebar().waitFor();
     const was = await sidebar().textContent();
 
     await page.keyboard.press('n');
@@ -102,7 +141,7 @@ describe('notes in a sidebar', () => {
     );
 
     // Still a hunk note, now about a different hunk.
-    expect(await sidebar().textContent()).not.toContain('reading it from the DOM');
+    expect(await sidebar().textContent()).not.toBe(was);
   });
 
   it('is resized by dragging its edge, and holds that width', async () => {

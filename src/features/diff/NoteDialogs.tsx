@@ -135,6 +135,7 @@ export function NoteDialogs({
           key={open.hunkId}
           hunkId={open.hunkId}
           notes={notes}
+          docked={placement !== 'overlay'}
           onClose={close}
           onOpenChange={onOpenChange}
         />
@@ -386,11 +387,13 @@ function Header({ title, onClose }: { title: ReactNode; onClose: () => void }) {
 function HunkDialog({
   hunkId,
   notes,
+  docked,
   onClose,
   onOpenChange,
 }: {
   hunkId: string;
   notes: AiChangelogView;
+  docked: boolean;
   onClose: () => void;
   onOpenChange: (changeId: string, hunkId?: string) => void;
 }) {
@@ -413,6 +416,7 @@ function HunkDialog({
                 // One change on its own has nothing to choose between, so it
                 // opens; several stay closed until the reader picks.
                 initiallyOpen={changes.length === 1}
+                docked={docked}
                 onOpenChange={onOpenChange}
               />
             ))}
@@ -552,12 +556,15 @@ function ChangeAccordion({
   notes,
   initiallyOpen,
   hunkId,
+  docked,
   onOpenChange,
 }: {
   changeId: string;
   hunkId: string;
   notes: AiChangelogView;
   initiallyOpen: boolean;
+  /** Beside or above the diff, where the panel is the only note there is. */
+  docked: boolean;
   onOpenChange: (changeId: string, hunkId?: string) => void;
 }) {
   const [open, setOpen] = useState(initiallyOpen);
@@ -585,7 +592,12 @@ function ChangeAccordion({
         </span>
       </button>
 
-      {open && (
+      {/* Expanded, the summary above is already the description in full. In
+          the overlay the change's own dialog is still worth an offer, since it
+          is what carries the linked issues; docked, swapping one panel for
+          another that says what is already on screen looked like a control
+          that did nothing (Guy). */}
+      {open && !docked && (
         <div className={styles.accordionBody}>
           <button
             type="button"

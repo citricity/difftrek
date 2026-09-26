@@ -230,6 +230,27 @@ describe('the contents dialog', () => {
 });
 
 describe('in the sidebar', () => {
+  it('leaves out the offer to open the change, which is on screen already', () => {
+    // The accordion, expanded, is the description in full; docked, a second
+    // panel saying the same thing read as a control that did nothing.
+    const hunk = resolved();
+    render(
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+
+    expect(screen.getByText('Reset the error count')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Open this change/ }),
+    ).not.toBeInTheDocument();
+  });
+
   function renderPlaced(open: NoteDialog) {
     const hunk = resolved();
     const onClose = vi.fn();
