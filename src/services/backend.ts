@@ -8,6 +8,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { AppError } from '../types/index.ts';
 import type {
   AiChangelog,
@@ -222,4 +223,57 @@ export function getSettings(): Promise<Settings> {
 /** Stores preferences and resolves with what was actually stored. */
 export function setSettings(settings: Settings): Promise<Settings> {
   return call<Settings>('set_settings', { settings });
+}
+
+/**
+ * Calls a command belonging to an extension.
+ *
+ * An extension's Rust half is a Tauri plugin named after it, and Tauri
+ * addresses plugin commands as `plugin:<name>|<command>`, so an extension can
+ * reach its own commands this way and no one else's. Outside Tauri, and under
+ * `--example`, it is answered like any other command — which for a command
+ * the fixtures have never heard of is an error saying so.
+ */
+export function invokeExtension<T>(
+  id: string,
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  return call<T>(`plugin:${id}|${command}`, args);
+}
+
+/** Files dragged over or dropped on the window, from the operating system. */
+export type FileDropEvent =
+  | { type: 'over'; paths: string[]; x: number; y: number }
+  | { type: 'drop'; paths: string[]; x: number; y: number }
+  | { type: 'leave' };
+
+/**
+ * Subscribes to files and folders dragged onto the window.
+ *
+ * The webview never sees a dropped file's path — the browser's own drag and
+ * drop hides it — so this comes from the shell instead. Positions arrive in
+ * physical pixels and are converted to CSS pixels, so a handler can hand them
+ * straight to `document.elementFromPoint`. The shell reports the paths once,
+ * on entering, so they are carried along to every later event. Outside Tauri
+ * there are no native drops and nothing to unhook.
+ */
+export async function onFileDrop(
+  handler: (event: FileDropEvent) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => undefined;
+
+  let paths: string[] = [];
+
+  return getCurrentWebview().onDragDropEvent(({ payload }) => {
+    if (payload.type === 'leave') {
+      paths = [];
+      handler({ type: 'leave' });
+      return;
+    }
+
+    if (payload.type === 'enter' || payload.type === 'drop') paths = payload.paths;
+    const { x, y } = payload.position.toLogical(window.devicePixelRatio);
+    handler({ type: payload.type === 'drop' ? 'drop' : 'over', paths, x, y });
+  });
 }

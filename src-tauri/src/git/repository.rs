@@ -11,7 +11,7 @@
 //! function here reads between those two commits instead, and never touches
 //! the index or the working tree.
 
-use super::command::{literal_pathspec, run};
+use super::command::{literal_pathspec, run, GitOutput};
 use super::model::{ChangedFile, ComparisonInfo, FileDiff, RepositoryInfo};
 use super::parse::{merge_changed_files, parse_file_diff, parse_name_status, parse_numstat};
 use super::revision::Comparison;
@@ -19,7 +19,7 @@ use crate::error::{AppError, AppResult, ErrorKind};
 use std::path::{Path, PathBuf};
 
 /// Number of unchanged lines shown around each change.
-const CONTEXT_LINES: u32 = 3;
+pub(crate) const CONTEXT_LINES: u32 = 3;
 
 /// Diffs larger than this are reported as `truncated` instead of parsed, so a
 /// single enormous file cannot stall the UI. The user can request it anyway.
@@ -117,18 +117,7 @@ pub fn file_diff(
     max_bytes: usize,
 ) -> AppResult<FileDiff> {
     if meta.binary {
-        return Ok(FileDiff {
-            id: meta.id.clone(),
-            path: meta.path.clone(),
-            old_path: meta.old_path.clone(),
-            status: meta.status,
-            binary: true,
-            truncated: false,
-            additions: 0,
-            deletions: 0,
-            max_line_length: 0,
-            hunks: Vec::new(),
-        });
+        return Ok(binary_diff(meta));
     }
 
     let context = format!("--unified={CONTEXT_LINES}");
@@ -154,9 +143,32 @@ pub fn file_diff(
     }
 
     let output = run(root, &args)?;
+    Ok(diff_from_output(meta, &output, max_bytes))
+}
 
+/// The diff for a file that is known to be binary: nothing to parse, and the
+/// document shows a notice (or both images) in place of hunks.
+pub fn binary_diff(meta: &ChangedFile) -> FileDiff {
+    FileDiff {
+        id: meta.id.clone(),
+        path: meta.path.clone(),
+        old_path: meta.old_path.clone(),
+        status: meta.status,
+        binary: true,
+        truncated: false,
+        additions: 0,
+        deletions: 0,
+        max_line_length: 0,
+        hunks: Vec::new(),
+    }
+}
+
+/// Parses one file's `git diff` output, or reports it `truncated` when it is
+/// over the byte budget. Shared by every source, so a folder comparison
+/// truncates exactly where a repository does.
+pub fn diff_from_output(meta: &ChangedFile, output: &GitOutput, max_bytes: usize) -> FileDiff {
     if output.stdout.len() > max_bytes {
-        return Ok(FileDiff {
+        return FileDiff {
             id: meta.id.clone(),
             path: meta.path.clone(),
             old_path: meta.old_path.clone(),
@@ -167,34 +179,15 @@ pub fn file_diff(
             deletions: meta.deletions.unwrap_or(0),
             max_line_length: 0,
             hunks: Vec::new(),
-        });
+        };
     }
 
-    Ok(parse_file_diff(meta, &output.text()))
+    parse_file_diff(meta, &output.text())
 }
 
-/// Which side of the comparison to read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Side {
-    /// The left-hand side: the index, or a comparison's base commit.
-    Original,
-    /// The right-hand side: the file on disk, or a comparison's target commit.
-    Working,
-}
-
-impl Side {
-    pub fn parse(value: &str) -> AppResult<Self> {
-        match value {
-            "original" => Ok(Self::Original),
-            "working" => Ok(Self::Working),
-            other => Err(AppError::new(
-                ErrorKind::InvalidDiff,
-                "Unknown file side requested.",
-            )
-            .with_detail(format!("side={other}"))),
-        }
-    }
-}
+/// Which side of the comparison to read. Shared with extensions' sources, so
+/// it lives in the extension API.
+pub use difftrek_extension_api::source::Side;
 
 /// Reads one whole side of a file, for expanding context beyond the hunks.
 pub fn file_contents(
@@ -237,14 +230,25 @@ pub fn image_bytes(
     path: &str,
     side: Side,
 ) -> AppResult<Vec<u8>> {
-    if !is_image_path(path) {
-        return Err(AppError::new(
-            ErrorKind::BinaryFile,
-            format!("{path} is not an image Diff Trek can show."),
-        ));
+    require_image_path(path)?;
+    limit_image(path, file_bytes(root, comparison, path, side)?)
+}
+
+/// Refuses a path that is not an image by extension — checked before anything
+/// is read, whichever source would be doing the reading.
+pub fn require_image_path(path: &str) -> AppResult<()> {
+    if is_image_path(path) {
+        return Ok(());
     }
 
-    let bytes = file_bytes(root, comparison, path, side)?;
+    Err(AppError::new(
+        ErrorKind::BinaryFile,
+        format!("{path} is not an image Diff Trek can show."),
+    ))
+}
+
+/// Declines an image over `MAX_IMAGE_BYTES`.
+pub fn limit_image(path: &str, bytes: Vec<u8>) -> AppResult<Vec<u8>> {
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(AppError::new(
             ErrorKind::BinaryFile,
@@ -259,7 +263,7 @@ pub fn image_bytes(
 }
 
 /// Reads one whole side of a file as bytes, exactly as stored.
-fn file_bytes(root: &Path, comparison: &Comparison, path: &str, side: Side) -> AppResult<Vec<u8>> {
+pub fn file_bytes(root: &Path, comparison: &Comparison, path: &str, side: Side) -> AppResult<Vec<u8>> {
     if let Comparison::Commits { base, target } = comparison {
         let commit = match side {
             Side::Original => base,
@@ -313,18 +317,6 @@ mod tests {
     fn image_bytes_refuses_a_file_that_is_not_an_image() {
         let error = image_bytes(Path::new("."), &Comparison::WorkingTree, "src/main.rs", Side::Working).unwrap_err();
         assert_eq!(error.kind, ErrorKind::BinaryFile);
-    }
-
-    #[test]
-    fn side_parses_known_values() {
-        assert_eq!(Side::parse("original").unwrap(), Side::Original);
-        assert_eq!(Side::parse("working").unwrap(), Side::Working);
-    }
-
-    #[test]
-    fn side_rejects_unknown_values() {
-        let error = Side::parse("staged").unwrap_err();
-        assert_eq!(error.kind, ErrorKind::InvalidDiff);
     }
 
     #[test]

@@ -18,6 +18,7 @@ import { ViewModeToggle } from './features/navigation/ViewModeToggle.tsx';
 import { RepositoryHeader } from './features/repository/RepositoryHeader.tsx';
 import { GitAliasDialog } from './features/gitAlias/GitAliasDialog.tsx';
 import { NotARepository } from './features/gitAlias/NotARepository.tsx';
+import { Landing } from './extensions/Landing.tsx';
 import { SettingsDialog } from './features/settings/SettingsDialog.tsx';
 import { useDiffNavigation } from './hooks/useDiffNavigation.ts';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.ts';
@@ -56,7 +57,23 @@ const RESIZE_THROTTLE_MS = 100;
 /** One empty object, so a diff with no changelog does not churn the memos. */
 const NO_HUNKS: Readonly<Record<string, ResolvedHunk>> = {};
 
+/**
+ * The app, one session at a time.
+ *
+ * A session is everything loaded from one source: its file list, diffs,
+ * navigation and notes. When an extension opens a new source, the old session
+ * is thrown away whole and a fresh one starts, which is simpler and safer than
+ * resetting each piece of state in place — nothing from the previous
+ * comparison can survive into the next.
+ */
 export function App() {
+  const [session, setSession] = useState(0);
+  const reload = useCallback(() => setSession((current) => current + 1), []);
+
+  return <Session key={session} onReload={reload} />;
+}
+
+function Session({ onReload }: { onReload: () => void }) {
   const {
     state,
     summary,
@@ -418,8 +435,11 @@ export function App() {
         {state.error.kind === 'notARepository' ? (
           // Opening Diff Trek from Applications, outside any repository, lands
           // here — which is exactly when installing git dt is wanted. The
-          // screen offers it, and carries the dialog itself.
-          <NotARepository />
+          // screen offers it, and carries the dialog itself. Extensions can
+          // offer something else to compare above it.
+          <Landing mode="none" onReload={onReload}>
+            <NotARepository />
+          </Landing>
         ) : (
           <>
             <StartupError error={state.error} />

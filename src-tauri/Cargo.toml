@@ -17,6 +17,14 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+difftrek-extension-api = { path = "../crates/extension-api" }
+
+# One line per extension in `extensions/`, written by `scripts/extensions.mjs`
+# (`pnpm extensions`). They have to be direct dependencies: Tauri finds a
+# plugin's permissions through its build script's `links` metadata, which
+# Cargo only passes one level up. Empty in the community build.
+# BEGIN EXTENSIONS
+# END EXTENSIONS
 
 [profile.release]
 codegen-units = 1

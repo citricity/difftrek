@@ -25,6 +25,22 @@ impl GitOutput {
 
 /// Runs `git` in `cwd` and returns stdout, or a classified error.
 pub fn run(cwd: &Path, args: &[&str]) -> AppResult<GitOutput> {
+    run_accepting(cwd, args, false)
+}
+
+/// Runs `git diff --no-index`, which compares two paths outside any
+/// repository and exits 1 whenever they differ — that is its answer, not a
+/// failure, so only a status above 1 is an error.
+///
+/// It runs in the temporary directory so that no repository the process
+/// happens to be inside contributes its configuration.
+pub fn run_no_index(args: &[&str]) -> AppResult<GitOutput> {
+    let mut full = vec!["diff", "--no-index"];
+    full.extend_from_slice(args);
+    run_accepting(&std::env::temp_dir(), &full, true)
+}
+
+fn run_accepting(cwd: &Path, args: &[&str], differences_found_is_success: bool) -> AppResult<GitOutput> {
     let output = Command::new("git")
         .args(BASE_ARGS)
         .args(args)
@@ -44,7 +60,8 @@ pub fn run(cwd: &Path, args: &[&str]) -> AppResult<GitOutput> {
             .with_detail(err.to_string())
         })?;
 
-    if !output.status.success() {
+    let differed = differences_found_is_success && output.status.code() == Some(1);
+    if !output.status.success() && !differed {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(AppError::from_git_stderr(&stderr));
     }

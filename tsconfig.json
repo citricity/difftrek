@@ -27,7 +27,18 @@
     "exactOptionalPropertyTypes": false,
 
     "skipLibCheck": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+
+    /* Mirrors the alias in vite.config.ts. */
+    "paths": {
+      "@difftrek/extension": ["./src/extensions/api.ts"]
+    }
   },
-  "include": ["src", "tests", "vite.config.ts", "vitest.integration.config.ts"]
+  "include": [
+    "src",
+    "extensions/*/ui",
+    "tests",
+    "vite.config.ts",
+    "vitest.integration.config.ts"
+  ]
 }

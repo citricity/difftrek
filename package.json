@@ -8,8 +8,9 @@
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/extensions.mjs && vite",
+    "build": "node scripts/extensions.mjs && tsc --noEmit && vite build",
+    "extensions": "node scripts/extensions.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -18,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test:rust": "node scripts/extensions.mjs && cargo test --manifest-path src-tauri/Cargo.toml && cargo test --manifest-path crates/extension-api/Cargo.toml",
     "tauri": "tauri",
     "verify": "pnpm typecheck && pnpm lint",
     "check": "pnpm verify && pnpm test && pnpm test:rust"

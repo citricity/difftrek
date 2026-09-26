@@ -1,7 +1,7 @@
 /**
  * Diff Trek's domain model.
  *
- * These types mirror the Rust structures in `src-tauri/src/git/model.rs`.
+ * These types mirror the Rust structures in `crates/extension-api/src/model.rs`.
  * Keep the two in step: the Rust side serialises with `rename_all = "camelCase"`.
  */
 

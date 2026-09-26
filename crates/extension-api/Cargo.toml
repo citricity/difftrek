@@ -1,0 +1,12 @@
+[package]
+name = "difftrek-extension-api"
+version = "0.1.0"
+description = "The contract between Diff Trek and the extensions compiled into it"
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+# Deliberately free of Tauri: the domain types and the traits an extension
+# implements are plain Rust, so they compile and test anywhere.
+[dependencies]
+serde = { version = "1", features = ["derive"] }
