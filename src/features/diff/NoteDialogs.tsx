@@ -13,7 +13,7 @@
  * shortcuts there, since there is no `<dialog>` to raise `close`.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CornerDownRight, Crosshair, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
@@ -79,6 +79,33 @@ export function NoteDialogs({
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
 
+  /**
+   * What had focus when the note opened.
+   *
+   * `showModal` restores focus to it for the overlay; docked, nothing does,
+   * and closing the panel from its own button would otherwise drop focus on
+   * the body and restart tabbing at the top of the app.
+   */
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+
+  useEffect(() => {
+    if (open !== null && !wasOpen.current) {
+      opener.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    wasOpen.current = open !== null;
+  }, [open]);
+
+  const closeDocked = useCallback(() => {
+    const back = opener.current;
+    onClose();
+    // Gone if the row it was drawn on has been virtualised away since.
+    if (back !== null && back.isConnected) back.focus();
+  }, [onClose]);
+
+  const close = placement === 'overlay' ? onClose : closeDocked;
+
   // Re-run on a change of placement as well: switching to the overlay while a
   // note is open mounts a fresh `<dialog>` that has not been shown yet.
   useEffect(() => {
@@ -108,7 +135,7 @@ export function NoteDialogs({
           key={open.hunkId}
           hunkId={open.hunkId}
           notes={notes}
-          onClose={onClose}
+          onClose={close}
           onOpenChange={onOpenChange}
         />
       )}
@@ -119,7 +146,7 @@ export function NoteDialogs({
           order={order}
           current={currentChange}
           focused={focused}
-          onClose={onClose}
+          onClose={close}
           onGoTo={(changeId) => {
             onOpenChange(changeId);
           }}
@@ -132,7 +159,7 @@ export function NoteDialogs({
           key={open.changeId}
           changeId={open.changeId}
           notes={notes}
-          onClose={onClose}
+          onClose={close}
         />
       )}
     </>
@@ -202,28 +229,46 @@ function SidebarEdge({
   width: number;
   onResize: (width: number, done: boolean) => void;
 }) {
-  const drag = useRef<{ x: number; width: number; last: number } | null>(null);
+  const drag = useRef<{
+    x: number;
+    width: number;
+    last: number;
+    moved: boolean;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
+  /** The width the arrow keys have moved to but not yet saved. */
+  const keyed = useRef<number | null>(null);
 
   const clamp = (element: HTMLElement, wanted: number) => {
     // Zero where nothing has been laid out (jsdom), which must not read as
     // "no room at all".
     const shared = element.closest('aside')?.parentElement?.clientWidth || Infinity;
     const upper = Math.min(MAX_NOTE_SIDEBAR_WIDTH, Math.floor(shared / 2));
-    return Math.round(Math.max(MIN_NOTE_SIDEBAR_WIDTH, Math.min(upper, wanted)));
+    // In a window with less than twice the minimum to give, the half-width cap
+    // is the tighter of the two and wins: a floor above the space available
+    // would report a width nothing is ever drawn at.
+    const lower = Math.min(MIN_NOTE_SIDEBAR_WIDTH, upper);
+    return Math.round(Math.max(lower, Math.min(upper, wanted)));
   };
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     // No text selection sweeping across the diff while the edge moves.
     event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // jsdom has no pointer capture, and a browser refuses it for a pointer
+    // that is no longer down. Neither is a reason to lose the drag.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // The pointer events still arrive; only capture outside the element is
+      // lost.
+    }
 
     // Measured rather than taken from `width`, so a drag starts from what is
     // on screen even where the window has capped it.
     const drawn =
       event.currentTarget.closest('aside')?.getBoundingClientRect().width ?? width;
-    drag.current = { x: event.clientX, width: drawn, last: drawn };
+    drag.current = { x: event.clientX, width: drawn, last: drawn, moved: false };
     setDragging(true);
   };
 
@@ -236,6 +281,7 @@ function SidebarEdge({
     if (next === start.last) return;
 
     start.last = next;
+    start.moved = true;
     onResize(next, false);
   };
 
@@ -245,12 +291,22 @@ function SidebarEdge({
 
     drag.current = null;
     setDragging(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    onResize(start.last, true);
+
+    // A click that moved nothing saves nothing. The drag starts from the width
+    // as drawn, which the window may have capped below the stored one, so
+    // committing it here would quietly shrink a width the reader never touched.
+    if (start.moved) onResize(start.last, true);
   };
 
+  /**
+   * Arrow keys move the edge like a drag: every press is shown, and the width
+   * is saved when the key comes back up. A held-down arrow repeats about
+   * thirty times a second, and each of those saves would be a write to the
+   * settings file.
+   */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step =
       event.key === 'ArrowLeft'
@@ -261,7 +317,16 @@ function SidebarEdge({
     if (step === 0) return;
 
     event.preventDefault();
-    onResize(clamp(event.currentTarget, width + step), true);
+    keyed.current = clamp(event.currentTarget, width + step);
+    onResize(keyed.current, false);
+  };
+
+  const onKeyUp = () => {
+    if (keyed.current === null) return;
+
+    const settled = keyed.current;
+    keyed.current = null;
+    onResize(settled, true);
   };
 
   return (
@@ -279,8 +344,13 @@ function SidebarEdge({
       onPointerMove={onPointerMove}
       onPointerUp={finish}
       onPointerCancel={finish}
+      // The panel can close under a drag — Escape, a reloaded changelog — and
+      // the release then never arrives at the element that started it.
+      onLostPointerCapture={finish}
       onDoubleClick={() => onResize(DEFAULT_SETTINGS.noteSidebarWidth, true)}
       onKeyDown={onKeyDown}
+      onKeyUp={onKeyUp}
+      onBlur={onKeyUp}
     />
   );
 }

@@ -39,8 +39,7 @@ function view(hunk: ResolvedHunk): AiChangelogView {
       changelog.logicalChanges.find((change) => change.id === id) ?? null,
     labelOf: (id) => (id === '0' ? 'A' : 'B'),
     describe: (id) =>
-      changelog.logicalChanges.find((change) => change.id === id)?.description ??
-      '',
+      changelog.logicalChanges.find((change) => change.id === id)?.description ?? '',
   };
 }
 
@@ -67,10 +66,9 @@ describe('the hunk dialog', () => {
 
   it('opens a lone logical change, because there is nothing to choose between', () => {
     open(resolved());
-    expect(screen.getByRole('button', { name: /Reset the error count/ })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: /Reset the error count/ }),
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('leaves several changes closed until the reader picks one', async () => {
@@ -96,7 +94,9 @@ describe('the hunk dialog', () => {
   });
 
   it('says so when identical hunks were given different reasons', () => {
-    open(resolved({ ambiguous: true, reasons: ['The header copy', 'The footer copy'] }));
+    open(
+      resolved({ ambiguous: true, reasons: ['The header copy', 'The footer copy'] }),
+    );
 
     expect(screen.getByText(/different reasons/)).toBeInTheDocument();
     expect(screen.getByText('The header copy')).toBeInTheDocument();
@@ -283,6 +283,33 @@ describe('in the sidebar', () => {
     expect(screen.queryByText(/read from the database/)).not.toBeInTheDocument();
   });
 
+  it('gives focus back to whatever opened it', async () => {
+    // The overlay gets this from `showModal`; docked, closing the panel from
+    // its own button would otherwise drop focus on the body and restart
+    // tabbing at the top of the app.
+    const hunk = resolved();
+    const marker = document.createElement('button');
+    document.body.append(marker);
+    marker.focus();
+
+    const props = (open: NoteDialog) => (
+      <NoteDialogs
+        open={open}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />
+    );
+    const { rerender } = render(props(null));
+    rerender(props({ kind: 'hunk', hunkId: hunk.hunkId }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(document.activeElement).toBe(marker);
+    marker.remove();
+  });
+
   it('closes from its own button', async () => {
     const { onClose } = renderPlaced({ kind: 'contents' });
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
@@ -294,7 +321,7 @@ describe('the sidebar edge', () => {
   function renderEdge(width = 360) {
     const hunk = resolved();
     const onSidebarResize = vi.fn();
-    render(
+    const props = (sidebarWidth: number) => (
       <NoteDialogs
         open={{ kind: 'hunk', hunkId: hunk.hunkId }}
         notes={view(hunk)}
@@ -302,43 +329,66 @@ describe('the sidebar edge', () => {
         onClose={vi.fn()}
         onOpenChange={vi.fn()}
         placement="sidebar"
-        sidebarWidth={width}
+        sidebarWidth={sidebarWidth}
         onSidebarResize={onSidebarResize}
-      />,
+      />
     );
+    const { rerender } = render(props(width));
+
     return {
-      edge: screen.getByRole('separator', { name: 'Resize the notes sidebar' }),
+      edge: () => screen.getByRole('separator', { name: 'Resize the notes sidebar' }),
+      // The width is the parent's to hold, so a step is only really kept if
+      // the next one is measured from it.
+      setWidth: (next: number) => rerender(props(next)),
       onSidebarResize,
     };
   }
 
   it('says how wide the sidebar is', () => {
-    expect(renderEdge(420).edge).toHaveAttribute('aria-valuenow', '420');
+    expect(renderEdge(420).edge()).toHaveAttribute('aria-valuenow', '420');
   });
 
-  it('moves with the arrow keys, and keeps each step', async () => {
-    const { edge, onSidebarResize } = renderEdge();
-    edge.focus();
+  it('moves with the arrow keys, and steps on from where it left off', async () => {
+    const user = userEvent.setup();
+    const { edge, setWidth, onSidebarResize } = renderEdge();
+    edge().focus();
 
-    // The edge is on the left: left widens, right narrows.
-    await userEvent.keyboard('{ArrowLeft}');
+    // The edge is on the left: left widens, right narrows. Each press shows
+    // the new width; the key coming up is what saves it, so that holding the
+    // key down writes the settings file once rather than thirty times a
+    // second.
+    await user.keyboard('{ArrowLeft>}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(376, false);
+    await user.keyboard('{/ArrowLeft}');
     expect(onSidebarResize).toHaveBeenLastCalledWith(376, true);
-    await userEvent.keyboard('{ArrowRight}');
-    expect(onSidebarResize).toHaveBeenLastCalledWith(344, true);
+
+    setWidth(376);
+    await user.keyboard('{ArrowLeft}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(392, true);
   });
 
   it('will not go narrower than the minimum', async () => {
     const { edge, onSidebarResize } = renderEdge(240);
-    edge.focus();
+    edge().focus();
 
     await userEvent.keyboard('{ArrowRight}');
     expect(onSidebarResize).toHaveBeenLastCalledWith(240, true);
   });
 
+  it('saves nothing for a click that moves nothing', async () => {
+    // A drag starts from the width as drawn, which the window may have capped
+    // below the stored one — committing that on a bare click would shrink a
+    // width the reader never touched.
+    const { edge, onSidebarResize } = renderEdge(600);
+    await userEvent.click(edge());
+    expect(onSidebarResize).not.toHaveBeenCalled();
+  });
+
   it('goes back to the default on a double click', async () => {
     const { edge, onSidebarResize } = renderEdge(600);
-    await userEvent.dblClick(edge);
-    expect(onSidebarResize).toHaveBeenLastCalledWith(360, true);
+    await userEvent.dblClick(edge());
+    expect(onSidebarResize).toHaveBeenCalledTimes(1);
+    expect(onSidebarResize).toHaveBeenCalledWith(360, true);
   });
 });
 

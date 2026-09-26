@@ -38,7 +38,7 @@ import {
   stepChange,
   stepWithinChange,
 } from './lib/noteMarkers.ts';
-import { entryPointOf, followNote } from './lib/openNote.ts';
+import { followNote } from './lib/openNote.ts';
 import type { NoteCursor } from './lib/openNote.ts';
 import { throttle } from './lib/throttle.ts';
 import type { Direction } from './lib/navigation.ts';
@@ -187,6 +187,12 @@ export function App() {
 
   const navigation = useDiffNavigation(state.files, ensureLoaded, navigationFilter);
 
+  // Taken out of the object, which `useDiffNavigation` rebuilds every render:
+  // a callback keyed on the whole of it is a new callback every render, and
+  // `documentNotes` below — which reaches every rendered row — is built from
+  // one of those.
+  const { goToHunk } = navigation;
+
   /** Which note dialog is open, if any. */
   const [noteDialog, setNoteDialog] = useState<NoteDialog>(null);
 
@@ -209,9 +215,20 @@ export function App() {
    * for every frame on the way to it.
    */
   const [draggedWidth, setDraggedWidth] = useState<number | null>(null);
+  // Dropped as soon as the panel closes: a drag the panel does not outlive —
+  // Escape, a reloaded changelog, a change of placement — never reaches its own
+  // release, and the width it was passing through would otherwise shadow the
+  // stored one for the rest of the session.
+  if (noteDialog === null && draggedWidth !== null) setDraggedWidth(null);
+
   const sidebarWidth = draggedWidth ?? settingsState.settings.noteSidebarWidth;
   const { update: updateSettings } = settingsState;
 
+  /**
+   * A drag the panel does not outlive — Escape, a reloaded changelog, a change
+   * of placement — never reaches its own release, so the width it was passing
+   * through would otherwise shadow the stored one for the rest of the session.
+   */
   const resizeSidebar = useCallback(
     (width: number, done: boolean) => {
       if (!done) {
@@ -231,9 +248,9 @@ export function App() {
    */
   const revealHunk = useCallback(
     (hunkId: string) => {
-      navigation.goToHunk(fileOfHunk(hunkId), hunkId);
+      goToHunk(fileOfHunk(hunkId), hunkId);
     },
-    [navigation],
+    [goToHunk],
   );
 
 
@@ -307,33 +324,23 @@ export function App() {
   const [requestedChange, setRequestedChange] = useState<string | null>(null);
 
   /**
-   * Where the reader is, for handlers that must not be rebuilt as they move.
-   *
-   * `documentNotes` reaches every rendered row, so giving it a new identity on
-   * each step would undo the rows' memoisation for the sake of a click handler
-   * that only reads the cursor when it is called.
-   */
-  const cursorRef = useRef<string | null>(null);
-
-  /**
    * Picking a logical change's letter in the gutter.
    *
-   * It becomes the bar's current change, so a hunk serving two intents shows
-   * the one picked rather than the first — and, unless it already covers the
-   * hunk the reader is on, it takes them to where it starts. Selecting a
-   * change you cannot see and staying put was the confusing half of this
-   * (Guy); saying which intent you are reading here, and being yanked away for
-   * it, would be the other.
+   * The cursor moves to the hunk the letter was drawn on, and that change
+   * becomes the bar's current one — so a hunk serving two intents shows the
+   * one picked rather than the first. Selecting a change and being left
+   * standing somewhere else was the confusing half of this (Guy); jumping to
+   * the change's first hunk instead would be the other, since it can be in
+   * another file, away from the marker just clicked.
    */
   const openChangeFromGutter = useCallback(
-    (changeId: string) => {
-      const target = entryPointOf(notedOrder, notedHunks, changeId, cursorRef.current);
-      if (target !== null) revealHunk(target);
+    (changeId: string, hunkId?: string) => {
+      if (hunkId !== undefined) revealHunk(hunkId);
 
       setRequestedChange(changeId);
       setNoteDialog({ kind: 'change', changeId });
     },
-    [notedHunks, notedOrder, revealHunk],
+    [revealHunk],
   );
 
   const documentNotes = useMemo(() => {
@@ -350,10 +357,6 @@ export function App() {
   }, [changelog, labelOf, openChangeFromGutter]);
 
   const currentHunk = navigation.current?.hunkId ?? null;
-
-  useEffect(() => {
-    cursorRef.current = currentHunk;
-  }, [currentHunk]);
 
   const hunkChanges =
     currentHunk === null ? undefined : notedHunks[currentHunk]?.logicalChangeIds;
@@ -376,9 +379,8 @@ export function App() {
    * shows that change.
    *
    * Adjusted during render against the cursor it last saw, rather than in an
-   * effect, so the sidebar never paints a frame about the hunk just left.
-   * Only in the sidebar — the overlay is modal and the cursor cannot move
-   * under it.
+   * effect, so the note never paints a frame about the hunk just left. Only
+   * when docked — the overlay is modal, and the cursor cannot move under it.
    */
   const [lastCursor, setLastCursor] = useState<NoteCursor>({
     hunkId: currentHunk,
@@ -479,6 +481,15 @@ export function App() {
     [goToChange],
   );
 
+  const closeDockedNote = useCallback(() => setNoteDialog(null), []);
+  const clearFocus = useCallback(() => setFocused(null), []);
+  const escape =
+    notesDocked && noteDialog !== null
+      ? closeDockedNote
+      : focused === null
+        ? undefined
+        : clearFocus;
+
   useKeyboardShortcuts({
     onNext: navigation.goNext,
     onPrevious: navigation.goPrevious,
@@ -486,15 +497,10 @@ export function App() {
     onPreviousChange: changes.length === 0 ? undefined : goToPreviousChange,
     onNextHunkInChange: currentChange === null ? undefined : nextHunkInChange,
     onPreviousHunkInChange: currentChange === null ? undefined : previousHunkInChange,
-    // An open sidebar goes first: it is the nearer thing to escape from, and a
+    // A docked note goes first: it is the nearer thing to escape from, and a
     // second press then clears the focus. A modal dialog handles its own
     // Escape, which the hook already leaves alone.
-    onEscape:
-      notesDocked && noteDialog !== null
-        ? () => setNoteDialog(null)
-        : focused === null
-          ? undefined
-          : () => setFocused(null),
+    onEscape: escape,
     onZoomIn: zoom.zoomIn,
     onZoomOut: zoom.zoomOut,
     onZoomReset: zoom.resetZoom,

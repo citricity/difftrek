@@ -7,9 +7,6 @@
  * note about the wrong code — so it follows them.
  */
 
-import { hunksOfChange } from './noteMarkers.ts';
-import type { ResolvedHunk } from '../types/index.ts';
-
 /** What the reader has open, if anything. */
 export type NoteDialog =
   | { kind: 'hunk'; hunkId: string }
@@ -62,29 +59,4 @@ export function followNote(
   }
 
   return note;
-}
-
-/**
- * Where picking a logical change's letter in the gutter should land, or null
- * to stay put.
- *
- * Picking a letter on a hunk that already belongs to that change says "this is
- * the intent I am reading here" — a hunk can serve two — and moving the reader
- * for that would throw away the code they were looking at. Picking a change
- * that does not cover them is a different request: they have selected
- * something they cannot see, so they are taken to where it starts, as the
- * contents list takes them.
- */
-export function entryPointOf(
-  order: readonly string[],
-  hunks: Readonly<Record<string, ResolvedHunk>>,
-  changeId: string,
-  currentHunk: string | null,
-): string | null {
-  const covers =
-    currentHunk !== null &&
-    (hunks[currentHunk]?.logicalChangeIds.includes(changeId) ?? false);
-  if (covers) return null;
-
-  return hunksOfChange(order, hunks, changeId)[0] ?? null;
 }

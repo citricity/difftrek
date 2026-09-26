@@ -105,7 +105,7 @@ describe('notes in a sidebar', () => {
     expect(await sidebar().textContent()).not.toContain('reading it from the DOM');
   });
 
-  it('is resized by dragging its edge, and remembers the width', async () => {
+  it('is resized by dragging its edge, and holds that width', async () => {
     const edge = page.getByRole('separator', { name: 'Resize the notes sidebar' });
     const start = (await sidebar().boundingBox())!;
     const handle = (await edge.boundingBox())!;
@@ -123,6 +123,9 @@ describe('notes in a sidebar', () => {
     expect(await documentRight()).toBeLessThanOrEqual(Math.ceil(widened.x));
 
     // Closed and opened again, it comes back at the width it was left at.
+    // (That the width reaches settings.json is the fixture's business and the
+    // Rust side's; the example backend forgets on reload, so this window is as
+    // far as a browser test can follow it.)
     await page.keyboard.press('Escape');
     await sidebar().waitFor({ state: 'detached' });
     await page

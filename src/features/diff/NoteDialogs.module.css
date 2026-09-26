@@ -47,7 +47,11 @@
   flex: 0 0 auto;
   flex-direction: column;
   height: var(--note-topbar-height);
+  /* A floor so a short window still shows the header and a line of note, and a
+     ceiling so the floor can never leave the diff with nothing: with the
+     interface zoomed in, 20vh of a small window is smaller than the floor. */
   min-height: 96px;
+  max-height: 50%;
   overflow: hidden;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
