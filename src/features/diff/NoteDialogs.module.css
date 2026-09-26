@@ -383,6 +383,50 @@
   font-size: calc(var(--ui-font-size) - 1px);
 }
 
+/* The hunks a change covers, listed under what it says. Same rows as the
+   contents list, so a change and the document read as one thing. */
+.hunkList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.hunkListTitle {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: calc(var(--ui-font-size) - 1px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.entryIndex {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* The file, cut from its start like every other path in the interface. */
+.hunkPath {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
 .entryFocus {
   display: flex;
   flex: 0 0 auto;

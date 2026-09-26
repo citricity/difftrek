@@ -144,6 +144,38 @@ describe('notes in a sidebar', () => {
     expect(await sidebar().textContent()).not.toBe(was);
   });
 
+  it('walks a change from the hunks listed under it', async () => {
+    // The list was taken out of this note when it was a dialog over the diff,
+    // because it sent the reader to hunks the dialog was covering. Docked, it
+    // is the pointer equivalent of the change bar's hunk arrows.
+    await page
+      .getByRole('button', { name: /^Logical change A/ })
+      .first()
+      .click();
+    await sidebar()
+      .getByRole('heading', { name: /Logical change/ })
+      .waitFor();
+
+    const rows = sidebar().locator('ol button');
+    const marked = await rows.evaluateAll((buttons) =>
+      buttons.findIndex((button) => button.getAttribute('aria-current') === 'true'),
+    );
+    expect(await rows.count()).toBeGreaterThan(1);
+    expect(marked).toBeGreaterThanOrEqual(0);
+
+    // Any row but the one the reader is already on.
+    const target = marked === 0 ? (await rows.count()) - 1 : 0;
+    const before = await globalPosition();
+    await rows.nth(target).click();
+    await page.waitForFunction((was) => position() !== was, before);
+
+    // Still the change's note, with the walk shown in the list.
+    await sidebar()
+      .getByRole('heading', { name: /Logical change/ })
+      .waitFor();
+    expect(await rows.nth(target).getAttribute('aria-current')).toBe('true');
+  });
+
   it('is resized by dragging its edge, and holds that width', async () => {
     const edge = page.getByRole('separator', { name: 'Resize the notes sidebar' });
     const start = (await sidebar().boundingBox())!;

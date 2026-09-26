@@ -559,6 +559,14 @@ export function App() {
         if (!notesDocked) setNoteDialog(null);
       }}
       placement={notePlacement}
+      currentHunk={currentHunk}
+      onGoToHunk={(hunkId) => {
+        revealHunk(hunkId);
+        // The note stays on the change: walking its hunks is what the list is
+        // for, and `followNote` moves a change note only when the change
+        // itself changes.
+        setRequestedChange(currentChange);
+      }}
       sidebarWidth={sidebarWidth}
       onSidebarResize={resizeSidebar}
     />

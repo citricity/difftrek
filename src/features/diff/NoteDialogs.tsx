@@ -53,6 +53,10 @@ interface Props {
   currentChange?: string | null;
   /** Over the diff as a modal dialog, or beside it in a sidebar. */
   placement?: NotePlacement;
+  /** The hunk the cursor is on, marked in a docked change's hunk list. */
+  currentHunk?: string | null;
+  /** Walking to one of a change's hunks from that list. */
+  onGoToHunk?: (hunkId: string) => void;
   /** The sidebar's width in CSS pixels. Unused in the overlay. */
   sidebarWidth?: number;
   /**
@@ -73,6 +77,8 @@ export function NoteDialogs({
   focused = null,
   onFocus,
   currentChange = null,
+  currentHunk = null,
+  onGoToHunk,
   placement = 'overlay',
   sidebarWidth = DEFAULT_SETTINGS.noteSidebarWidth,
   onSidebarResize,
@@ -160,6 +166,12 @@ export function NoteDialogs({
           key={open.changeId}
           changeId={open.changeId}
           notes={notes}
+          // Its hunks are listed where the panel sits beside the code they
+          // are in; over the diff, the list would send the reader to hunks
+          // the dialog is covering.
+          order={placement === 'overlay' ? null : order}
+          currentHunk={currentHunk}
+          onGoToHunk={onGoToHunk}
           onClose={close}
         />
       )}
@@ -550,6 +562,53 @@ function ContentsDialog({
   );
 }
 
+/**
+ * One hunk of a change, in the list under it.
+ *
+ * The row the reader is on brings itself into view, which matters most in the
+ * bar above the diff: it is short, and a change of more than a few hunks
+ * scrolls the current one out of it as they walk.
+ */
+function HunkRow({
+  hunkId,
+  index,
+  reason,
+  current,
+  onGoTo,
+}: {
+  hunkId: string;
+  index: number;
+  reason: string | null;
+  current: boolean;
+  onGoTo?: (hunkId: string) => void;
+}) {
+  const row = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    // jsdom has no scrollIntoView, and nothing here depends on it.
+    if (current) row.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [current]);
+
+  return (
+    <li ref={row} className={styles.entry}>
+      <button
+        type="button"
+        className={styles.entryButton}
+        // Where the reader is, so a walk through the change can be followed in
+        // the list as well as in the code.
+        aria-current={current ? 'true' : undefined}
+        onClick={() => onGoTo?.(hunkId)}
+      >
+        <span className={styles.entryIndex}>{index + 1}</span>
+        <span className={styles.entryText}>
+          <span className={styles.hunkPath}>{fileOfHunk(hunkId)}</span>
+          <span className={styles.entryMeta}>{reason ?? 'No reason recorded'}</span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 /** One logical change, collapsed to a line until the reader wants it. */
 function ChangeAccordion({
   changeId,
@@ -614,20 +673,28 @@ function ChangeAccordion({
 }
 
 /**
- * One logical change, in full: its description and the issues it answers.
+ * One logical change, in full: its description, the issues it answers, and —
+ * docked — the hunks it covers.
  *
- * Nothing else. Walking the change — its hunks, one after another — is done
- * from the change bar, where the code stays in view; a dialog over the diff is
- * the wrong place for anything the reader does while looking at the code. What
- * a dialog is for is the description, which the bar can only cut short.
+ * The list was taken out of this dialog once, because a dialog over the diff
+ * covers the very hunks it walks to. Beside or above the code that no longer
+ * holds (Guy), and a change is easier to read as a whole when what it touches
+ * is listed under what it says.
  */
 function ChangeDialog({
   changeId,
   notes,
+  order,
+  currentHunk,
+  onGoToHunk,
   onClose,
 }: {
   changeId: string;
   notes: AiChangelogView;
+  /** Every hunk in the document, or null where the list is not shown. */
+  order: readonly string[] | null;
+  currentHunk: string | null;
+  onGoToHunk?: (hunkId: string) => void;
   onClose: () => void;
 }) {
   const change = notes.logicalChange(changeId);
@@ -635,6 +702,12 @@ function ChangeDialog({
   // Defaulted rather than indexed directly: a backend that omits an empty list
   // would otherwise take the whole window down on a click.
   const issues = change?.associatedIssues ?? [];
+
+  const hunks = notes.changelog?.hunks ?? {};
+  const covered =
+    order === null || onGoToHunk === undefined
+      ? []
+      : hunksOfChange(order, hunks, changeId);
 
   return (
     <>
@@ -685,6 +758,27 @@ function ChangeDialog({
               );
             })}
           </p>
+        )}
+
+        {covered.length > 0 && (
+          <section className={styles.hunkList}>
+            <h3 className={styles.hunkListTitle}>
+              {covered.length} hunk{covered.length === 1 ? '' : 's'}
+            </h3>
+
+            <ol className={styles.contents}>
+              {covered.map((hunkId, index) => (
+                <HunkRow
+                  key={hunkId}
+                  hunkId={hunkId}
+                  index={index}
+                  reason={hunks[hunkId]?.reasons[0] ?? null}
+                  current={hunkId === currentHunk}
+                  onGoTo={onGoToHunk}
+                />
+              ))}
+            </ol>
+          </section>
         )}
       </div>
     </>

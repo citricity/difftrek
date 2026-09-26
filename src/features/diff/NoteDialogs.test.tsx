@@ -185,6 +185,61 @@ describe('the logical change dialog, given a thin payload', () => {
   });
 });
 
+describe("a docked change's hunk list", () => {
+  const second = 'src/two.ts:hunk:0';
+
+  function renderChange(placement: 'sidebar' | 'overlay', onGoToHunk = vi.fn()) {
+    const hunk = resolved();
+    const notes = view(hunk);
+    // A second hunk for the same change, so the list has something to walk.
+    notes.changelog!.hunks[second] = resolved({
+      hunkId: second,
+      reasons: ['The footer copy follows the header.'],
+    });
+
+    render(
+      <NoteDialogs
+        open={{ kind: 'change', changeId: '0' }}
+        notes={notes}
+        order={[hunk.hunkId, second]}
+        currentHunk={second}
+        onGoToHunk={onGoToHunk}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement={placement}
+      />,
+    );
+    return { onGoToHunk };
+  }
+
+  it('lists the hunks under the description, marking where the reader is', () => {
+    renderChange('sidebar');
+
+    expect(screen.getByText('2 hunks')).toBeInTheDocument();
+    expect(screen.getByText('src/one.ts')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /footer copy/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+  });
+
+  it('walks to a hunk without closing', async () => {
+    const { onGoToHunk } = renderChange('sidebar');
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /read from the database/ }),
+    );
+    expect(onGoToHunk).toHaveBeenCalledWith('src/one.ts:hunk:0');
+    // Still the change: the list is what the reader walks it from.
+    expect(screen.getByRole('heading', { name: /Logical change/ })).toBeInTheDocument();
+  });
+
+  it('is not offered in the overlay, which covers the hunks it would walk to', () => {
+    renderChange('overlay');
+    expect(screen.queryByText('2 hunks')).not.toBeInTheDocument();
+  });
+});
+
 describe('the contents dialog', () => {
   it('lists the changes with a hunk on screen, and how much each covers', async () => {
     const hunk = resolved();
