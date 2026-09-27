@@ -19,6 +19,7 @@ import { RepositoryHeader } from './features/repository/RepositoryHeader.tsx';
 import { GitAliasDialog } from './features/gitAlias/GitAliasDialog.tsx';
 import { NotARepository } from './features/gitAlias/NotARepository.tsx';
 import { Landing } from './extensions/Landing.tsx';
+import { landingExtensions } from './extensions/registry.ts';
 import { SettingsDialog } from './features/settings/SettingsDialog.tsx';
 import { useDiffNavigation } from './hooks/useDiffNavigation.ts';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.ts';
@@ -438,7 +439,7 @@ function Session({ onReload }: { onReload: () => void }) {
           // screen offers it, and carries the dialog itself. Extensions can
           // offer something else to compare above it.
           <Landing mode="none" onReload={onReload}>
-            <NotARepository />
+            <NotARepository alongside={landingExtensions('none').length > 0} />
           </Landing>
         ) : (
           <>

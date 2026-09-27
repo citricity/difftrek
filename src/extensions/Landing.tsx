@@ -9,7 +9,11 @@ interface Props {
   mode: Mode;
   /** Reloads the document onto whatever an extension has opened. */
   onReload: () => void;
-  /** The core's own content for this screen, shown beneath any panels. */
+  /**
+   * The core's own content for this screen, shown beneath any panels. It is
+   * told when there are panels (see `NotARepository`'s `alongside`), and
+   * lays itself out as one section among them.
+   */
   children: ReactNode;
   /** Overrides the compiled-in extensions; for tests. */
   extensions?: readonly Extension[];
@@ -37,7 +41,7 @@ export function Landing({ mode, onReload, children, extensions = compiledIn }: P
           onReload={onReload}
         />
       ))}
-      <div className={styles.core}>{children}</div>
+      {children}
     </div>
   );
 }

@@ -9,6 +9,65 @@
   text-align: center;
 }
 
+/* Beside an extension's panel this is one line under a rule rather than the
+   whole screen: the panel is what the screen is for, and this is an aside. */
+.alongside {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 960px);
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.alongsideTitle,
+.alongsideMessage {
+  margin: 0;
+  font-size: var(--ui-font-size);
+}
+
+.alongsideTitle {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alongsideMessage {
+  color: var(--text-muted);
+}
+
+.alongside code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--code-font-size);
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.alongsideButton {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--ui-font-size);
+  cursor: default;
+}
+
+.alongsideButton:hover {
+  background: var(--surface-hover);
+}
+
+.alongsideButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .icon {
   color: var(--text-faint);
 }

@@ -9,6 +9,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { dropScale, isWindowsWebview } from '../lib/dropPosition.ts';
 import { AppError } from '../types/index.ts';
 import type {
   AiChangelog,
@@ -252,11 +254,12 @@ export type FileDropEvent =
  * Subscribes to files and folders dragged onto the window.
  *
  * The webview never sees a dropped file's path — the browser's own drag and
- * drop hides it — so this comes from the shell instead. Positions arrive in
- * physical pixels and are converted to CSS pixels, so a handler can hand them
- * straight to `document.elementFromPoint`. The shell reports the paths once,
- * on entering, so they are carried along to every later event. Outside Tauri
- * there are no native drops and nothing to unhook.
+ * drop hides it — so this comes from the shell instead. Positions are handed
+ * on in CSS pixels, so a handler can pass them straight to
+ * `document.elementFromPoint`; see `lib/dropPosition.ts` for why that takes
+ * measuring the window rather than dividing by `devicePixelRatio`. The shell
+ * reports the paths once, on entering, so they are carried along to every
+ * later event. Outside Tauri there are no native drops and nothing to unhook.
  */
 export async function onFileDrop(
   handler: (event: FileDropEvent) => void,
@@ -264,16 +267,49 @@ export async function onFileDrop(
   if (!isTauri()) return () => undefined;
 
   let paths: string[] = [];
+  /**
+   * Measured once per drag, as it enters: the window cannot be resized or
+   * zoomed mid-drag. Every event waits on the same promise, so they are still
+   * delivered in order.
+   */
+  let scale: Promise<number> = Promise.resolve(1);
 
   return getCurrentWebview().onDragDropEvent(({ payload }) => {
     if (payload.type === 'leave') {
       paths = [];
-      handler({ type: 'leave' });
+      void scale.then(() => handler({ type: 'leave' }));
       return;
     }
 
+    if (payload.type === 'enter') scale = measureDropScale();
     if (payload.type === 'enter' || payload.type === 'drop') paths = payload.paths;
-    const { x, y } = payload.position.toLogical(window.devicePixelRatio);
-    handler({ type: payload.type === 'drop' ? 'drop' : 'over', paths, x, y });
+    const { x, y } = payload.position;
+    const type = payload.type === 'drop' ? 'drop' : 'over';
+    const current = paths;
+    void scale.then((factor) =>
+      handler({ type, paths: current, x: x * factor, y: y * factor }),
+    );
   });
+}
+
+/** CSS pixels per unit of drag position, for the window as it is now. */
+async function measureDropScale(): Promise<number> {
+  try {
+    const current = getCurrentWindow();
+    const [size, scaleFactor] = await Promise.all([
+      current.innerSize(),
+      current.scaleFactor(),
+    ]);
+    return dropScale({
+      physicalWidth: size.width,
+      scaleFactor,
+      cssWidth: window.innerWidth,
+      windows: isWindowsWebview(navigator.userAgent),
+    });
+  } catch (thrown) {
+    // Without the window's size, the best guess is the old one; a drop still
+    // lands somewhere, and the panel can place it.
+    console.error('[difftrek] could not measure the window for a drop', thrown);
+    return 1 / window.devicePixelRatio;
+  }
 }

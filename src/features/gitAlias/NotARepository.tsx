@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GitCompare, SquareTerminal } from 'lucide-react';
 import { getGitAliasStatus } from '../../services/backend.ts';
+import { AppError } from '../../types/index.ts';
 import type { GitAliasStatus } from '../../types/index.ts';
 import { GitAliasDialog } from './GitAliasDialog.tsx';
 import type { GitAliasDialogHandle } from './GitAliasDialog.tsx';
@@ -13,11 +14,22 @@ import styles from './NotARepository.module.css';
  * of Diff Trek, moved or reinstalled since — so the call to action becomes an
  * update rather than an install.
  */
-type Alias = 'checking' | 'installed' | 'other' | 'missing';
+type Alias = 'checking' | 'installed' | 'other' | 'missing' | 'no-git';
 
 function aliasFrom(status: GitAliasStatus): Alias {
   if (status.installed) return 'installed';
   return status.existing !== null ? 'other' : 'missing';
+}
+
+interface Props {
+  /**
+   * Set when an extension offers something to compare on the same screen, so
+   * this is not the only way in. The screen then stops saying Diff Trek only
+   * works from Git — it no longer does — and shows nothing at all unless there
+   * is something worth doing: Git is installed and `git dt` is missing or
+   * points at another copy.
+   */
+  alongside?: boolean;
 }
 
 /**
@@ -29,7 +41,7 @@ function aliasFrom(status: GitAliasStatus): Alias {
  * set up: without it, installing the command is the one thing worth doing
  * here; with it, the screen explains how Diff Trek is meant to be opened.
  */
-export function NotARepository() {
+export function NotARepository({ alongside = false }: Props) {
   const [alias, setAlias] = useState<Alias>('checking');
   const dialog = useRef<GitAliasDialogHandle>(null);
   /**
@@ -49,15 +61,19 @@ export function NotARepository() {
       },
       (thrown: unknown) => {
         console.error('[difftrek] could not read the git dt alias', thrown);
-        // Offer the install: if Git itself is the problem, the dialog says so.
-        if (!stale()) setAlias('missing');
+        if (stale()) return;
+        // With no Git there is nothing to install the command into. Alone,
+        // the screen still offers it, and the dialog explains what is wrong;
+        // alongside another way in, there is nothing to say.
+        const noGit = AppError.from(thrown).kind === 'gitUnavailable';
+        setAlias(noGit && alongside ? 'no-git' : 'missing');
       },
     );
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [alongside]);
 
   // Installing from the dialog, or from the menu, changes what this screen says.
   const handleStatusChange = useCallback((status: GitAliasStatus) => {
@@ -66,6 +82,37 @@ export function NotARepository() {
   }, []);
 
   const openDialog = useCallback(() => dialog.current?.open(), []);
+
+  if (alongside) {
+    return (
+      <>
+        {(alias === 'missing' || alias === 'other') && (
+          // One quiet line: the panel above is what this screen is for now.
+          <section className={styles.alongside}>
+            <SquareTerminal className={styles.icon} size={16} aria-hidden="true" />
+            <h2 className={styles.alongsideTitle}>
+              {alias === 'other' ? 'Update' : 'Set up'} <code>git dt</code>
+            </h2>
+            <p className={styles.alongsideMessage}>
+              {alias === 'other'
+                ? 'It opens a different copy of Diff Trek.'
+                : 'to open the changes in any Git repository here.'}
+            </p>
+            <button
+              type="button"
+              className={styles.alongsideButton}
+              onClick={openDialog}
+              aria-label={`${alias === 'other' ? 'Update' : 'Install'} git dt Command…`}
+            >
+              {alias === 'other' ? 'Update' : 'Install'}…
+            </button>
+          </section>
+        )}
+        {/* Mounted whatever the state, so the menu item still opens it. */}
+        <GitAliasDialog ref={dialog} onStatusChange={handleStatusChange} />
+      </>
+    );
+  }
 
   return (
     <div className={styles.screen}>
