@@ -27,23 +27,34 @@ interface Props {
  * screen, unchanged.
  */
 export function Landing({ mode, onReload, children, extensions = compiledIn }: Props) {
-  const panels = landingExtensions(mode, extensions);
-
-  if (panels.length === 0) return children;
+  if (landingExtensions(mode, extensions).length === 0) return children;
 
   return (
     <div className={styles.screen}>
-      {panels.map((extension) => (
-        <LandingPanel
-          key={extension.id}
-          extension={extension}
-          mode={mode}
-          onReload={onReload}
-        />
-      ))}
+      <LandingPanels mode={mode} onReload={onReload} extensions={extensions} />
       {children}
     </div>
   );
+}
+
+/**
+ * Just the panels for `mode`, for a screen that lays itself out — the empty
+ * diff, say, where they sit beneath its own message. Nothing when no
+ * extension contributes one.
+ */
+export function LandingPanels({
+  mode,
+  onReload,
+  extensions = compiledIn,
+}: Omit<Props, 'children'>) {
+  return landingExtensions(mode, extensions).map((extension) => (
+    <LandingPanel
+      key={extension.id}
+      extension={extension}
+      mode={mode}
+      onReload={onReload}
+    />
+  ));
 }
 
 function LandingPanel({

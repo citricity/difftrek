@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { defineExtension } from './api.ts';
 import type { Extension, LandingProps } from './api.ts';
-import { Landing } from './Landing.tsx';
+import { Landing, LandingPanels } from './Landing.tsx';
 import { landingExtensions } from './registry.ts';
 
 const invokeExtension = vi.fn();
@@ -97,5 +97,20 @@ describe('Landing', () => {
     expect(screen.getByRole('button', { name: 'Open from none' })).toBeInTheDocument();
     expect(screen.getByText('Core guidance')).toBeInTheDocument();
     quiet.mockRestore();
+  });
+
+  it('offers just the panels for a screen that lays itself out', () => {
+    render(
+      <div data-testid="empty-diff">
+        <LandingPanels
+          mode="git"
+          onReload={() => undefined}
+          extensions={[opener, gitOnly]}
+        />
+      </div>,
+    );
+
+    expect(screen.getByTestId('empty-diff')).toHaveTextContent('Only in git');
+    expect(screen.queryByRole('button', { name: /Open from/ })).toBeNull();
   });
 });

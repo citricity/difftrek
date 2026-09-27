@@ -111,6 +111,10 @@ pub struct FileDiff {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepositoryInfo {
+    /// Which source this is: `git` for a repository, or the id of the
+    /// extension that opened it. The frontend uses it to decide which
+    /// extension panels belong on an empty diff.
+    pub source: String,
     /// Absolute path to the repository working tree root.
     pub root: String,
     /// Directory name of the root, for display.

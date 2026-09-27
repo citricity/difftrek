@@ -106,7 +106,7 @@ pub fn get_repository_info(
     sources: State<'_, ActiveSource>,
 ) -> AppResult<RepositoryInfo> {
     // Whatever is listed next comes from the source described now.
-    state.set_files(Vec::new());
+    state.clear();
 
     if let Some(source) = sources.current() {
         return source.info();
@@ -150,8 +150,11 @@ pub fn get_changed_files(
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
 ) -> AppResult<Vec<ChangedFile>> {
-    let files = sources.require()?.changed_files()?;
-    state.set_files(files.clone());
+    // Listed and stored against one source, taken once: an extension opening
+    // another meanwhile cannot pair this listing with it.
+    let source = sources.require()?;
+    let files = source.changed_files()?;
+    state.set_files(&source, files.clone());
     Ok(files)
 }
 
@@ -166,10 +169,9 @@ pub fn get_file_diff(
     path: String,
     max_bytes: Option<usize>,
 ) -> AppResult<FileDiff> {
-    let meta = state.file(&path)?;
-    sources
-        .require()?
-        .file_diff(&meta, max_bytes.unwrap_or(DEFAULT_MAX_DIFF_BYTES))
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
+    source.file_diff(&meta, max_bytes.unwrap_or(DEFAULT_MAX_DIFF_BYTES))
 }
 
 #[tauri::command]
@@ -179,7 +181,8 @@ pub fn get_file_contents(
     path: String,
     side: String,
 ) -> AppResult<String> {
-    let meta = state.file(&path)?;
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
 
     if meta.binary {
         return Err(AppError::new(
@@ -188,7 +191,7 @@ pub fn get_file_contents(
         ));
     }
 
-    let bytes = sources.require()?.file_bytes(&meta, Side::parse(&side)?)?;
+    let bytes = source.file_bytes(&meta, Side::parse(&side)?)?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
@@ -205,7 +208,8 @@ pub fn get_image_bytes(
     path: String,
     side: String,
 ) -> AppResult<tauri::ipc::Response> {
-    let meta = state.file(&path)?;
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
     let side = Side::parse(&side)?;
 
     let source_path = match side {
@@ -214,7 +218,7 @@ pub fn get_image_bytes(
     };
     repository::require_image_path(source_path)?;
 
-    let bytes = sources.require()?.file_bytes(&meta, side)?;
+    let bytes = source.file_bytes(&meta, side)?;
     repository::limit_image(source_path, bytes).map(tauri::ipc::Response::new)
 }
 

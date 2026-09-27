@@ -19,7 +19,7 @@ import { ViewModeToggle } from './features/navigation/ViewModeToggle.tsx';
 import { RepositoryHeader } from './features/repository/RepositoryHeader.tsx';
 import { GitAliasDialog } from './features/gitAlias/GitAliasDialog.tsx';
 import { NotARepository } from './features/gitAlias/NotARepository.tsx';
-import { Landing } from './extensions/Landing.tsx';
+import { Landing, LandingPanels } from './extensions/Landing.tsx';
 import { landingExtensions } from './extensions/registry.ts';
 import { SettingsDialog } from './features/settings/SettingsDialog.tsx';
 import { useDiffNavigation } from './hooks/useDiffNavigation.ts';
@@ -691,6 +691,11 @@ function Session({ onReload }: { onReload: () => void }) {
             onViewportWidthChange={reportViewportWidth}
             notes={documentNotes}
             navigationFilter={navigationFilter}
+            emptyExtras={
+              state.repository?.source === 'git' ? (
+                <LandingPanels mode="git" onReload={onReload} />
+              ) : undefined
+            }
           />
         </WordingContext.Provider>
 

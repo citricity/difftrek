@@ -168,6 +168,7 @@ mod tests {
     impl Source for Named {
         fn info(&self) -> AppResult<RepositoryInfo> {
             Ok(RepositoryInfo {
+                source: "test".to_string(),
                 root: String::new(),
                 name: self.0.to_string(),
                 branch: None,

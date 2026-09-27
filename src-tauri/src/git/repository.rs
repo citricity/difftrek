@@ -65,6 +65,7 @@ pub fn info(root: &Path, comparison: Option<ComparisonInfo>) -> AppResult<Reposi
         .unwrap_or_else(|| root.to_string_lossy().into_owned());
 
     Ok(RepositoryInfo {
+        source: "git".to_string(),
         root: root.to_string_lossy().into_owned(),
         name,
         branch: if detached { None } else { branch },

@@ -65,6 +65,8 @@ export interface FileDiff {
 }
 
 export interface RepositoryInfo {
+  /** `git` for a repository, or the id of the extension that opened it. */
+  source: string;
   root: string;
   name: string;
   /** `null` when HEAD is detached. */

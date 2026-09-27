@@ -241,8 +241,23 @@ export function invokeExtension<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
+  // A command name is a Rust function name. Anything else — a `|` or a
+  // `plugin:` prefix above all — would be an attempt to address something
+  // other than this extension's own plugin.
+  if (!COMMAND_PATTERN.test(command)) {
+    return Promise.reject(
+      new AppError({
+        kind: 'invalidDiff',
+        message: `${id} asked for a command that cannot exist: ${command}.`,
+        detail: null,
+      }),
+    );
+  }
+
   return call<T>(`plugin:${id}|${command}`, args);
 }
+
+const COMMAND_PATTERN = /^[a-z_][a-z0-9_]*$/;
 
 /** Files dragged over or dropped on the window, from the operating system. */
 export type FileDropEvent =
@@ -307,9 +322,10 @@ async function measureDropScale(): Promise<number> {
       windows: isWindowsWebview(navigator.userAgent),
     });
   } catch (thrown) {
-    // Without the window's size, the best guess is the old one; a drop still
-    // lands somewhere, and the panel can place it.
+    // Without the window's size, assume no zoom: that is right for points and
+    // logical pixels as they come, and only WebView2's device pixels need the
+    // scale factor taken out.
     console.error('[difftrek] could not measure the window for a drop', thrown);
-    return 1 / window.devicePixelRatio;
+    return isWindowsWebview(navigator.userAgent) ? 1 / window.devicePixelRatio : 1;
   }
 }

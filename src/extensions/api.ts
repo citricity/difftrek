@@ -15,7 +15,8 @@ export type { FileDropEvent };
  * What Diff Trek has open.
  *
  * `none` is the screen shown outside a repository — the natural place to offer
- * something to compare instead. `git` is a repository's diff.
+ * something to compare instead. `git` is a repository with nothing to show:
+ * panels for it appear beneath the "No unstaged changes" message.
  */
 export type Mode = 'git' | 'none';
 

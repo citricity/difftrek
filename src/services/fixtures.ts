@@ -297,6 +297,7 @@ function sideFor(diff: FileDiff, side: FileSide): string[] | null {
 }
 
 const REPOSITORY: RepositoryInfo = {
+  source: 'git',
   root: '/Users/you/Development/difftrek',
   name: 'difftrek (example)',
   branch: 'main',
