@@ -1,7 +1,8 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { filterByPath } from '../../lib/fileFilter.ts';
-import { splitPath, statusLabel, statusLetter } from '../../lib/format.ts';
+import { splitPath, statusLetter } from '../../lib/format.ts';
+import { statusTitle, useWording } from '../diff/wording.ts';
 import type { DocumentFile } from '../../types/index.ts';
 import type { FileListAnchor } from '../diff/FileHeaderRow.tsx';
 import styles from './FileNavigator.module.css';
@@ -45,6 +46,7 @@ export function FileNavigator({
   onSelect,
   onClose,
 }: Props) {
+  const wording = useWording();
   const dialog = useRef<HTMLDialogElement>(null);
   const listId = useId();
   const optionId = (index: number): string => `${listId}-option-${index}`;
@@ -175,7 +177,7 @@ export function FileNavigator({
                   <span
                     className={styles.status}
                     data-status={meta.status}
-                    title={statusLabel(meta.status)}
+                    title={statusTitle(wording, meta.status)}
                   >
                     {statusLetter(meta.status)}
                   </span>

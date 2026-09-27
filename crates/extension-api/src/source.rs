@@ -174,6 +174,8 @@ mod tests {
                 head: None,
                 detached: false,
                 comparison: None,
+                one_sided: Default::default(),
+                side_names: Default::default(),
             })
         }
 

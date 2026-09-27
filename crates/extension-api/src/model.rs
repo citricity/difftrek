@@ -123,6 +123,43 @@ pub struct RepositoryInfo {
     /// Set when Diff Trek was given a commit or range to show instead of the
     /// working tree.
     pub comparison: Option<ComparisonInfo>,
+    /// What a file on only one side means here, which decides how the
+    /// document words it.
+    pub one_sided: OneSided,
+    /// What the two sides are called where the document names them.
+    pub side_names: SideNames,
+}
+
+/// The names of the two sides, as the document shows them — on an image's
+/// two panes, and in "missing from …".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SideNames {
+    pub original: String,
+    pub working: String,
+}
+
+impl Default for SideNames {
+    /// A repository's two sides are two moments in the same tree.
+    fn default() -> Self {
+        Self {
+            original: "Before".to_string(),
+            working: "After".to_string(),
+        }
+    }
+}
+
+/// What a file present on only one side of a comparison means.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OneSided {
+    /// History: between two versions of the same tree the file was added or
+    /// deleted, so that is what the document says.
+    #[default]
+    Change,
+    /// Presence: two folders are not two versions of anything, so a file
+    /// found on one side is simply missing from the other.
+    Missing,
 }
 
 /// A commit or range from the command line, for the header.

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StartupError } from './components/StartupError.tsx';
 import { ChangeBar } from './features/diff/ChangeBar.tsx';
 import { DiffDocument } from './features/diff/DiffDocument.tsx';
+import { WordingContext, wordingOf } from './features/diff/wording.ts';
 import { NoteDialogs } from './features/diff/NoteDialogs.tsx';
 import { NoteStatus } from './features/diff/NoteStatus.tsx';
 import type { NoteDialog } from './features/diff/NoteDialogs.tsx';
@@ -93,6 +94,9 @@ function Session({ onReload }: { onReload: () => void }) {
    * failed, where asking would only add a second error to the first.
    */
   const changelog = useAiChangelog(state.phase === 'ready');
+
+  /** Memoised so the rows reading it re-render only when the source changes. */
+  const wording = useMemo(() => wordingOf(state.repository), [state.repository]);
   const hasNotes = changelog.changelog !== null;
 
   /**
@@ -496,31 +500,36 @@ function Session({ onReload }: { onReload: () => void }) {
         />
       )}
 
-      <DiffDocument
-        files={state.files}
-        model={model}
-        metrics={metrics}
-        loading={state.phase === 'starting'}
-        comparison={
-          state.repository === null
-            ? undefined
-            : (state.repository.comparison?.label ?? null)
-        }
-        current={navigation.current}
-        revealRequest={navigation.revealRequest}
-        onSelect={navigation.goTo}
-        onScrollToChange={navigation.goTo}
-        onSelectFile={navigation.goToFile}
-        onVisibleFileChange={prefetchAround}
-        onToggleCollapse={toggleCollapse}
-        onLoadFully={handleLoadFully}
-        onExpandContext={revealContext}
-        wrapColumn={wrapColumn}
-        viewMode={viewMode}
-        onViewportWidthChange={reportViewportWidth}
-        notes={documentNotes}
-        navigationFilter={navigationFilter}
-      />
+      {/* How the sides are named, and what a file on only one of them is —
+          Before/After and added/deleted in a repository, A/B and missing
+          between two folders. The rows and the file list read it from here. */}
+      <WordingContext.Provider value={wording}>
+        <DiffDocument
+          files={state.files}
+          model={model}
+          metrics={metrics}
+          loading={state.phase === 'starting'}
+          comparison={
+            state.repository === null
+              ? undefined
+              : (state.repository.comparison?.label ?? null)
+          }
+          current={navigation.current}
+          revealRequest={navigation.revealRequest}
+          onSelect={navigation.goTo}
+          onScrollToChange={navigation.goTo}
+          onSelectFile={navigation.goToFile}
+          onVisibleFileChange={prefetchAround}
+          onToggleCollapse={toggleCollapse}
+          onLoadFully={handleLoadFully}
+          onExpandContext={revealContext}
+          wrapColumn={wrapColumn}
+          viewMode={viewMode}
+          onViewportWidthChange={reportViewportWidth}
+          notes={documentNotes}
+          navigationFilter={navigationFilter}
+        />
+      </WordingContext.Provider>
 
       {changelog.changelog !== null && (
         <NoteDialogs

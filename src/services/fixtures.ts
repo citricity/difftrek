@@ -301,6 +301,8 @@ const REPOSITORY: RepositoryInfo = {
   head: 'a1b2c3d',
   detached: false,
   comparison: null,
+  oneSided: 'change',
+  sideNames: { original: 'Before', working: 'After' },
 };
 
 /**

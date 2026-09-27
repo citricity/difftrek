@@ -77,7 +77,24 @@ export interface RepositoryInfo {
    * (`git dt main...HEAD`) instead of reviewing the working tree.
    */
   comparison: ComparisonInfo | null;
+  /** What a file on only one side means here; see `OneSided`. */
+  oneSided: OneSided;
+  /** What the two sides are called where the document names them. */
+  sideNames: SideNames;
 }
+
+/** `Before`/`After` in a repository; a folder comparison calls them A and B. */
+export interface SideNames {
+  original: string;
+  working: string;
+}
+
+/**
+ * What a file present on only one side of a comparison means: in a
+ * repository it was added or deleted, but between two folders, which are not
+ * two versions of anything, it is simply missing from the other side.
+ */
+export type OneSided = 'change' | 'missing';
 
 /** A commit or range given on the command line. */
 export interface ComparisonInfo {

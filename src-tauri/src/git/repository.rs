@@ -12,7 +12,7 @@
 //! the index or the working tree.
 
 use super::command::{literal_pathspec, run, GitOutput};
-use super::model::{ChangedFile, ComparisonInfo, FileDiff, RepositoryInfo};
+use super::model::{ChangedFile, ComparisonInfo, FileDiff, OneSided, RepositoryInfo, SideNames};
 use super::parse::{merge_changed_files, parse_file_diff, parse_name_status, parse_numstat};
 use super::revision::Comparison;
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -71,6 +71,8 @@ pub fn info(root: &Path, comparison: Option<ComparisonInfo>) -> AppResult<Reposi
         head,
         detached,
         comparison,
+        one_sided: OneSided::Change,
+        side_names: SideNames::default(),
     })
 }
 

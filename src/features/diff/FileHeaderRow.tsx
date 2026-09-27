@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import { ChevronDown, ChevronRight, ChevronsUpDown } from 'lucide-react';
-import { splitPath, statusLabel, statusLetter } from '../../lib/format.ts';
+import { splitPath, statusLetter } from '../../lib/format.ts';
+import { statusTitle, useWording } from './wording.ts';
 import type { DocumentFile } from '../../types/index.ts';
 import styles from './DiffRows.module.css';
 
@@ -35,6 +36,7 @@ function FileHeaderRowImpl({
   onOpenFileList,
   style,
 }: Props) {
+  const wording = useWording();
   const { meta, collapsed } = file;
   const { directory, name } = splitPath(meta.path);
   const Chevron = collapsed ? ChevronRight : ChevronDown;
@@ -70,7 +72,7 @@ function FileHeaderRowImpl({
       <span
         className={styles.statusLetter}
         data-status={meta.status}
-        title={statusLabel(meta.status)}
+        title={statusTitle(wording, meta.status)}
       >
         {statusLetter(meta.status)}
       </span>
