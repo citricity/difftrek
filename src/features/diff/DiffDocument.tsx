@@ -120,6 +120,12 @@ interface Props {
    * with Previous/Next while a logical change is focused.
    */
   navigationFilter?: NavigationFilter;
+  /**
+   * Shown beneath the message when there is nothing to review — where
+   * extensions offer something else to do with a repository that has no
+   * changes.
+   */
+  emptyExtras?: ReactNode;
 }
 
 export function DiffDocument({
@@ -142,6 +148,7 @@ export function DiffDocument({
   onViewportWidthChange,
   notes = null,
   navigationFilter,
+  emptyExtras,
 }: Props) {
   /**
    * The scrolling element, held twice on purpose.
@@ -736,6 +743,7 @@ export function DiffDocument({
                   <span>Both sides of the comparison are identical.</span>
                 </>
               )}
+              {emptyExtras}
             </>
           )}
         </div>

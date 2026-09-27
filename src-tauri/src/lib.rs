@@ -2,6 +2,7 @@ pub mod ai_changelog;
 pub mod cli;
 pub mod commands;
 pub mod error;
+pub mod extensions;
 pub mod git;
 pub mod git_alias;
 pub mod launch;
@@ -9,7 +10,9 @@ pub mod menu;
 pub mod settings;
 pub mod state;
 
+use difftrek_extension_api::source::ActiveSource;
 use state::AppState;
+use std::sync::Arc;
 use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,8 +24,16 @@ pub fn run() {
         std::process::exit(cli::execute(request));
     }
 
-    tauri::Builder::default()
+    // Every extension found in `extensions/` at build time; `extensions.rs` is
+    // generated. Each is a Tauri plugin, so its commands and their permissions
+    // are namespaced by Tauri rather than by us.
+    let builder = extensions::register(tauri::Builder::default());
+
+    builder
         .manage(AppState::default())
+        // What is being compared. Empty until the repository is opened, or an
+        // extension opens something else.
+        .manage(ActiveSource::new(Arc::new(git::host::GitHost)))
         // Runs after the default menu has been installed, so there is something
         // to add the Settings item to.
         .setup(|app| {

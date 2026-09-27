@@ -1,7 +1,7 @@
 /**
  * Diff Trek's domain model.
  *
- * These types mirror the Rust structures in `src-tauri/src/git/model.rs`.
+ * These types mirror the Rust structures in `crates/extension-api/src/model.rs`.
  * Keep the two in step: the Rust side serialises with `rename_all = "camelCase"`.
  */
 
@@ -65,6 +65,8 @@ export interface FileDiff {
 }
 
 export interface RepositoryInfo {
+  /** `git` for a repository, or the id of the extension that opened it. */
+  source: string;
   root: string;
   name: string;
   /** `null` when HEAD is detached. */
@@ -77,7 +79,24 @@ export interface RepositoryInfo {
    * (`git dt main...HEAD`) instead of reviewing the working tree.
    */
   comparison: ComparisonInfo | null;
+  /** What a file on only one side means here; see `OneSided`. */
+  oneSided: OneSided;
+  /** What the two sides are called where the document names them. */
+  sideNames: SideNames;
 }
+
+/** `Before`/`After` in a repository; a folder comparison calls them A and B. */
+export interface SideNames {
+  original: string;
+  working: string;
+}
+
+/**
+ * What a file present on only one side of a comparison means: in a
+ * repository it was added or deleted, but between two folders, which are not
+ * two versions of anything, it is simply missing from the other side.
+ */
+export type OneSided = 'change' | 'missing';
 
 /** A commit or range given on the command line. */
 export interface ComparisonInfo {

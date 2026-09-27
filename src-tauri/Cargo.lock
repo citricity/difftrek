@@ -579,10 +579,18 @@ dependencies = [
 name = "diff-trek"
 version = "0.1.0"
 dependencies = [
+ "difftrek-extension-api",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
+]
+
+[[package]]
+name = "difftrek-extension-api"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

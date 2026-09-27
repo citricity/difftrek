@@ -1,4 +1,4 @@
-/** Mirrors `ErrorKind` in `src-tauri/src/error.rs`. */
+/** Mirrors `ErrorKind` in `crates/extension-api/src/error.rs`. */
 export type AppErrorKind =
   | 'notARepository'
   | 'gitUnavailable'

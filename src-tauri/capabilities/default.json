@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the main window's webview may call beyond Diff Trek's own commands. App commands registered with generate_handler! are allowed without listing; core plugin commands are not, and without event listening the Settings menu item has no way to reach the dialog.",
+  "description": "What the main window's webview may call beyond Diff Trek's own commands. App commands registered with generate_handler! are allowed without listing; core plugin commands are not, and without event listening the Settings menu item has no way to reach the dialog. The window size and scale factor turn a file dropped on the window into a point on the page, since the webviews disagree about the units they report it in.",
   "windows": ["main"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-inner-size",
+    "core:window:allow-scale-factor"
+  ]
 }

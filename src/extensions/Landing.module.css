@@ -1,0 +1,9 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  height: 100%;
+  padding: 40px 32px;
+  overflow: auto;
+}

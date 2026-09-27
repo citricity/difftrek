@@ -1,8 +1,9 @@
 //! The Tauri command surface.
 //!
-//! This is the entire frontend/backend boundary. Commands stay thin: resolve
-//! state, call into `git`, return domain types. No presentation logic here,
-//! and no Git logic in the frontend.
+//! This is the core's whole frontend/backend boundary; extensions add their
+//! own commands as Tauri plugins. Commands stay thin: resolve state, call the
+//! open source, return domain types. No presentation logic here, and no Git
+//! logic in the frontend.
 
 use crate::ai_changelog::service::{self as changelog, ChangelogView};
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -10,9 +11,12 @@ use crate::git::model::{ChangedFile, FileDiff, RepositoryInfo};
 use crate::git_alias::{self, AliasStatus, ConfigTarget};
 use crate::git::repository::{self, Side, DEFAULT_MAX_DIFF_BYTES};
 use crate::git::revision::{self, Comparison};
+use crate::git::source::GitSource;
 use crate::launch::{self, launch_target, LaunchOptions};
 use crate::settings::{self, Settings};
 use crate::state::AppState;
+use difftrek_extension_api::source::{ActiveSource, Source};
+use std::sync::Arc;
 use tauri::{Manager, Runtime, State};
 
 /// Where `settings.json` lives, per the platform's own conventions.
@@ -88,21 +92,37 @@ pub fn get_launch_options() -> LaunchOptions {
     launch::launch_options()
 }
 
-/// Opens the repository, and resolves any commit or range it was launched
-/// with. A revision that does not resolve fails here, so it reaches the
-/// startup error screen rather than an empty diff.
+/// Describes what is open, for the header.
+///
+/// The first call opens the repository Diff Trek was launched in, and
+/// resolves any commit or range it was launched with — a revision that does
+/// not resolve fails here, so it reaches the startup error screen rather than
+/// an empty diff. Once a source is open, whether that repository or one an
+/// extension opened since, it is described instead: the frontend calls this
+/// again when it reloads onto an extension's source.
 #[tauri::command]
-pub fn get_repository_info(state: State<'_, AppState>) -> AppResult<RepositoryInfo> {
+pub fn get_repository_info(
+    state: State<'_, AppState>,
+    sources: State<'_, ActiveSource>,
+) -> AppResult<RepositoryInfo> {
+    // Whatever is listed next comes from the source described now.
+    state.clear();
+
+    if let Some(source) = sources.current() {
+        return source.info();
+    }
+
     let target = launch_target();
     let root = repository::discover(&target.directory)?;
 
-    let (comparison, info) = match revision::comparison_for(&root, &target.revisions)? {
+    let (comparison, label) = match revision::comparison_for(&root, &target.revisions)? {
         Some(resolved) => (resolved.comparison, Some(resolved.info)),
         None => (Comparison::WorkingTree, None),
     };
 
-    state.set_root(root.clone(), comparison);
-    repository::info(&root, info)
+    let source = Arc::new(GitSource::new(root, comparison, label));
+    sources.open(source.clone());
+    source.info()
 }
 
 /// The AI changelog describing what is on screen, if there is one.
@@ -112,17 +132,29 @@ pub fn get_repository_info(state: State<'_, AppState>) -> AppResult<RepositoryIn
 /// A changelog that only partly matches *is* returned, with a summary saying
 /// how much of it still applies — a developer editing the code after the notes
 /// were written is normal, and losing every note over it would not be.
+///
+/// Changelogs are written against Git diffs, so a source that is not a
+/// repository never has one.
 #[tauri::command]
-pub fn get_ai_changelog(state: State<'_, AppState>) -> AppResult<Option<ChangelogView>> {
-    let root = state.root()?;
-    Ok(changelog::load(&root, &state.comparison()).map(ChangelogView::from))
+pub fn get_ai_changelog(sources: State<'_, ActiveSource>) -> AppResult<Option<ChangelogView>> {
+    let source = sources.require()?;
+    let Some(git) = source.as_any().downcast_ref::<GitSource>() else {
+        return Ok(None);
+    };
+
+    Ok(changelog::load(git.root(), git.comparison()).map(ChangelogView::from))
 }
 
 #[tauri::command]
-pub fn get_changed_files(state: State<'_, AppState>) -> AppResult<Vec<ChangedFile>> {
-    let root = state.root()?;
-    let files = repository::changed_files(&root, &state.comparison())?;
-    state.set_files(files.clone());
+pub fn get_changed_files(
+    state: State<'_, AppState>,
+    sources: State<'_, ActiveSource>,
+) -> AppResult<Vec<ChangedFile>> {
+    // Listed and stored against one source, taken once: an extension opening
+    // another meanwhile cannot pair this listing with it.
+    let source = sources.require()?;
+    let files = source.changed_files()?;
+    state.set_files(&source, files.clone());
     Ok(files)
 }
 
@@ -133,27 +165,24 @@ pub fn get_changed_files(state: State<'_, AppState>) -> AppResult<Vec<ChangedFil
 #[tauri::command]
 pub fn get_file_diff(
     state: State<'_, AppState>,
+    sources: State<'_, ActiveSource>,
     path: String,
     max_bytes: Option<usize>,
 ) -> AppResult<FileDiff> {
-    let root = state.root()?;
-    let meta = state.file(&path)?;
-    repository::file_diff(
-        &root,
-        &state.comparison(),
-        &meta,
-        max_bytes.unwrap_or(DEFAULT_MAX_DIFF_BYTES),
-    )
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
+    source.file_diff(&meta, max_bytes.unwrap_or(DEFAULT_MAX_DIFF_BYTES))
 }
 
 #[tauri::command]
 pub fn get_file_contents(
     state: State<'_, AppState>,
+    sources: State<'_, ActiveSource>,
     path: String,
     side: String,
 ) -> AppResult<String> {
-    let root = state.root()?;
-    let meta = state.file(&path)?;
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
 
     if meta.binary {
         return Err(AppError::new(
@@ -162,40 +191,35 @@ pub fn get_file_contents(
         ));
     }
 
-    // The original side of a rename is read from the path it had before, as
-    // images already were; between commits a rename is the common case.
-    let side = Side::parse(&side)?;
-    let source = match side {
-        Side::Original => meta.old_path.as_deref().unwrap_or(&meta.path),
-        Side::Working => &meta.path,
-    };
-
-    repository::file_contents(&root, &state.comparison(), source, side)
+    let bytes = source.file_bytes(&meta, Side::parse(&side)?)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// One side of a changed image, as raw bytes.
 ///
 /// Returned as an `ipc::Response` so the bytes cross the boundary as a binary
 /// body — the webview receives an `ArrayBuffer` — rather than as a JSON array
-/// of numbers several times the size. The original side of a rename is read
-/// from the path it had before.
+/// of numbers several times the size. Only images, by extension, and only up
+/// to a size, whichever source is doing the reading.
 #[tauri::command]
 pub fn get_image_bytes(
     state: State<'_, AppState>,
+    sources: State<'_, ActiveSource>,
     path: String,
     side: String,
 ) -> AppResult<tauri::ipc::Response> {
-    let root = state.root()?;
-    let meta = state.file(&path)?;
+    let source = sources.require()?;
+    let meta = state.file(&source, &path)?;
     let side = Side::parse(&side)?;
 
-    let source = match side {
+    let source_path = match side {
         Side::Original => meta.old_path.as_deref().unwrap_or(&meta.path),
         Side::Working => &meta.path,
     };
+    repository::require_image_path(source_path)?;
 
-    repository::image_bytes(&root, &state.comparison(), source, side)
-        .map(tauri::ipc::Response::new)
+    let bytes = source.file_bytes(&meta, side)?;
+    repository::limit_image(source_path, bytes).map(tauri::ipc::Response::new)
 }
 
 /// What installing the `git dt` alias would do: the command, the executable it

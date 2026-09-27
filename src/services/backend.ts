@@ -8,6 +8,9 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { dropScale, isWindowsWebview } from '../lib/dropPosition.ts';
 import { AppError } from '../types/index.ts';
 import type {
   AiChangelog,
@@ -222,4 +225,107 @@ export function getSettings(): Promise<Settings> {
 /** Stores preferences and resolves with what was actually stored. */
 export function setSettings(settings: Settings): Promise<Settings> {
   return call<Settings>('set_settings', { settings });
+}
+
+/**
+ * Calls a command belonging to an extension.
+ *
+ * An extension's Rust half is a Tauri plugin named after it, and Tauri
+ * addresses plugin commands as `plugin:<name>|<command>`, so an extension can
+ * reach its own commands this way and no one else's. Outside Tauri, and under
+ * `--example`, it is answered like any other command — which for a command
+ * the fixtures have never heard of is an error saying so.
+ */
+export function invokeExtension<T>(
+  id: string,
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  // A command name is a Rust function name. Anything else — a `|` or a
+  // `plugin:` prefix above all — would be an attempt to address something
+  // other than this extension's own plugin.
+  if (!COMMAND_PATTERN.test(command)) {
+    return Promise.reject(
+      new AppError({
+        kind: 'invalidDiff',
+        message: `${id} asked for a command that cannot exist: ${command}.`,
+        detail: null,
+      }),
+    );
+  }
+
+  return call<T>(`plugin:${id}|${command}`, args);
+}
+
+const COMMAND_PATTERN = /^[a-z_][a-z0-9_]*$/;
+
+/** Files dragged over or dropped on the window, from the operating system. */
+export type FileDropEvent =
+  | { type: 'over'; paths: string[]; x: number; y: number }
+  | { type: 'drop'; paths: string[]; x: number; y: number }
+  | { type: 'leave' };
+
+/**
+ * Subscribes to files and folders dragged onto the window.
+ *
+ * The webview never sees a dropped file's path — the browser's own drag and
+ * drop hides it — so this comes from the shell instead. Positions are handed
+ * on in CSS pixels, so a handler can pass them straight to
+ * `document.elementFromPoint`; see `lib/dropPosition.ts` for why that takes
+ * measuring the window rather than dividing by `devicePixelRatio`. The shell
+ * reports the paths once, on entering, so they are carried along to every
+ * later event. Outside Tauri there are no native drops and nothing to unhook.
+ */
+export async function onFileDrop(
+  handler: (event: FileDropEvent) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => undefined;
+
+  let paths: string[] = [];
+  /**
+   * Measured once per drag, as it enters: the window cannot be resized or
+   * zoomed mid-drag. Every event waits on the same promise, so they are still
+   * delivered in order.
+   */
+  let scale: Promise<number> = Promise.resolve(1);
+
+  return getCurrentWebview().onDragDropEvent(({ payload }) => {
+    if (payload.type === 'leave') {
+      paths = [];
+      void scale.then(() => handler({ type: 'leave' }));
+      return;
+    }
+
+    if (payload.type === 'enter') scale = measureDropScale();
+    if (payload.type === 'enter' || payload.type === 'drop') paths = payload.paths;
+    const { x, y } = payload.position;
+    const type = payload.type === 'drop' ? 'drop' : 'over';
+    const current = paths;
+    void scale.then((factor) =>
+      handler({ type, paths: current, x: x * factor, y: y * factor }),
+    );
+  });
+}
+
+/** CSS pixels per unit of drag position, for the window as it is now. */
+async function measureDropScale(): Promise<number> {
+  try {
+    const current = getCurrentWindow();
+    const [size, scaleFactor] = await Promise.all([
+      current.innerSize(),
+      current.scaleFactor(),
+    ]);
+    return dropScale({
+      physicalWidth: size.width,
+      scaleFactor,
+      cssWidth: window.innerWidth,
+      windows: isWindowsWebview(navigator.userAgent),
+    });
+  } catch (thrown) {
+    // Without the window's size, assume no zoom: that is right for points and
+    // logical pixels as they come, and only WebView2's device pixels need the
+    // scale factor taken out.
+    console.error('[difftrek] could not measure the window for a drop', thrown);
+    return isWindowsWebview(navigator.userAgent) ? 1 / window.devicePixelRatio : 1;
+  }
 }

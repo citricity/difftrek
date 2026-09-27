@@ -2,6 +2,8 @@ export type {
   ChangeLocation,
   ChangedFile,
   ComparisonInfo,
+  OneSided,
+  SideNames,
   DiffHunk,
   DiffLine,
   DocumentFile,

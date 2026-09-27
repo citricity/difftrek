@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StartupError } from './components/StartupError.tsx';
 import { ChangeBar } from './features/diff/ChangeBar.tsx';
 import { DiffDocument } from './features/diff/DiffDocument.tsx';
+import { WordingContext, wordingOf } from './features/diff/wording.ts';
 import { NoteDialogs } from './features/diff/NoteDialogs.tsx';
 import { NoteStatus } from './features/diff/NoteStatus.tsx';
 import type { NoteDialog } from './features/diff/NoteDialogs.tsx';
@@ -18,6 +19,8 @@ import { ViewModeToggle } from './features/navigation/ViewModeToggle.tsx';
 import { RepositoryHeader } from './features/repository/RepositoryHeader.tsx';
 import { GitAliasDialog } from './features/gitAlias/GitAliasDialog.tsx';
 import { NotARepository } from './features/gitAlias/NotARepository.tsx';
+import { Landing, LandingPanels } from './extensions/Landing.tsx';
+import { landingExtensions } from './extensions/registry.ts';
 import { SettingsDialog } from './features/settings/SettingsDialog.tsx';
 import { useDiffNavigation } from './hooks/useDiffNavigation.ts';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.ts';
@@ -58,7 +61,23 @@ const RESIZE_THROTTLE_MS = 100;
 /** One empty object, so a diff with no changelog does not churn the memos. */
 const NO_HUNKS: Readonly<Record<string, ResolvedHunk>> = {};
 
+/**
+ * The app, one session at a time.
+ *
+ * A session is everything loaded from one source: its file list, diffs,
+ * navigation and notes. When an extension opens a new source, the old session
+ * is thrown away whole and a fresh one starts, which is simpler and safer than
+ * resetting each piece of state in place — nothing from the previous
+ * comparison can survive into the next.
+ */
 export function App() {
+  const [session, setSession] = useState(0);
+  const reload = useCallback(() => setSession((current) => current + 1), []);
+
+  return <Session key={session} onReload={reload} />;
+}
+
+function Session({ onReload }: { onReload: () => void }) {
   const {
     state,
     summary,
@@ -77,6 +96,9 @@ export function App() {
    * failed, where asking would only add a second error to the first.
    */
   const changelog = useAiChangelog(state.phase === 'ready');
+
+  /** Memoised so the rows reading it re-render only when the source changes. */
+  const wording = useMemo(() => wordingOf(state.repository), [state.repository]);
   const hasNotes = changelog.changelog !== null;
 
   /**
@@ -578,8 +600,11 @@ export function App() {
         {state.error.kind === 'notARepository' ? (
           // Opening Diff Trek from Applications, outside any repository, lands
           // here — which is exactly when installing git dt is wanted. The
-          // screen offers it, and carries the dialog itself.
-          <NotARepository />
+          // screen offers it, and carries the dialog itself. Extensions can
+          // offer something else to compare above it.
+          <Landing mode="none" onReload={onReload}>
+            <NotARepository alongside={landingExtensions('none').length > 0} />
+          </Landing>
         ) : (
           <>
             <StartupError error={state.error} />
@@ -638,31 +663,41 @@ export function App() {
       {notePlacement === 'topbar' && noteView}
 
       <div className={styles.main}>
-        <DiffDocument
-          files={state.files}
-          model={model}
-          metrics={metrics}
-          loading={state.phase === 'starting'}
-          comparison={
-            state.repository === null
-              ? undefined
-              : (state.repository.comparison?.label ?? null)
-          }
-          current={navigation.current}
-          revealRequest={navigation.revealRequest}
-          onSelect={navigation.goTo}
-          onScrollToChange={navigation.goTo}
-          onSelectFile={navigation.goToFile}
-          onVisibleFileChange={prefetchAround}
-          onToggleCollapse={toggleCollapse}
-          onLoadFully={handleLoadFully}
-          onExpandContext={revealContext}
-          wrapColumn={wrapColumn}
-          viewMode={viewMode}
-          onViewportWidthChange={reportViewportWidth}
-          notes={documentNotes}
-          navigationFilter={navigationFilter}
-        />
+        {/* How the sides are named, and what a file on only one of them is —
+            Before/After and added/deleted in a repository, A/B and missing
+            between two folders. The rows and the file list read it from here. */}
+        <WordingContext.Provider value={wording}>
+          <DiffDocument
+            files={state.files}
+            model={model}
+            metrics={metrics}
+            loading={state.phase === 'starting'}
+            comparison={
+              state.repository === null
+                ? undefined
+                : (state.repository.comparison?.label ?? null)
+            }
+            current={navigation.current}
+            revealRequest={navigation.revealRequest}
+            onSelect={navigation.goTo}
+            onScrollToChange={navigation.goTo}
+            onSelectFile={navigation.goToFile}
+            onVisibleFileChange={prefetchAround}
+            onToggleCollapse={toggleCollapse}
+            onLoadFully={handleLoadFully}
+            onExpandContext={revealContext}
+            wrapColumn={wrapColumn}
+            viewMode={viewMode}
+            onViewportWidthChange={reportViewportWidth}
+            notes={documentNotes}
+            navigationFilter={navigationFilter}
+            emptyExtras={
+              state.repository?.source === 'git' ? (
+                <LandingPanels mode="git" onReload={onReload} />
+              ) : undefined
+            }
+          />
+        </WordingContext.Provider>
 
         {notePlacement !== 'topbar' && noteView}
       </div>

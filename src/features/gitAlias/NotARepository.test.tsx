@@ -135,4 +135,53 @@ describe('NotARepository', () => {
       await screen.findByRole('button', { name: /Install git dt Command/ }),
     ).toBeTruthy();
   });
+
+  describe('alongside an extension panel', () => {
+    it('says nothing once git dt is set up', async () => {
+      getGitAliasStatus.mockResolvedValue({ ...STATUS, installed: true });
+      render(<NotARepository alongside />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole('heading')).toBeNull();
+      expect(screen.queryByText(/only supports diffs from within Git/)).toBeNull();
+    });
+
+    it('offers to set up git dt without claiming Git is the only way in', async () => {
+      render(<NotARepository alongside />);
+
+      expect(
+        await screen.findByRole('heading', { name: /Set up git dt/ }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole('button', { name: /Install git dt Command/ }),
+      ).toBeTruthy();
+      expect(screen.queryByText(/only supports diffs from within Git/)).toBeNull();
+    });
+
+    it('offers an update when git dt opens another copy', async () => {
+      getGitAliasStatus.mockResolvedValue({ ...STATUS, existing: '!echo elsewhere' });
+      render(<NotARepository alongside />);
+
+      expect(
+        await screen.findByRole('heading', { name: /Update git dt/ }),
+      ).toBeTruthy();
+    });
+
+    it('says nothing when Git is not installed', async () => {
+      getGitAliasStatus.mockRejectedValue({
+        kind: 'gitUnavailable',
+        message: 'Git could not be started.',
+        detail: null,
+      });
+      render(<NotARepository alongside />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole('heading')).toBeNull();
+      expect(screen.queryByRole('button', { name: /git dt/ })).toBeNull();
+    });
+  });
 });

@@ -1,5 +1,6 @@
 // `vitest/config` re-exports Vite's `defineConfig` widened with the `test`
 // block, which keeps one config file instead of two.
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -10,6 +11,16 @@ import react from '@vitejs/plugin-react';
  */
 export default defineConfig({
   plugins: [react()],
+
+  resolve: {
+    alias: {
+      // What an extension's React half imports from the core. One module, so
+      // that is the whole of the contract; see `src/extensions/api.ts`.
+      '@difftrek/extension': fileURLToPath(
+        new URL('./src/extensions/api.ts', import.meta.url),
+      ),
+    },
+  },
 
   // Tauri owns the terminal output; don't let Vite clear its messages.
   clearScreen: false,
@@ -36,6 +47,6 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'extensions/*/ui/**/*.test.{ts,tsx}'],
   },
 });

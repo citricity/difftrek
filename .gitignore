@@ -13,3 +13,8 @@ src-tauri/gen/
 .vscode/*
 !.vscode/extensions.json
 Claude outputs/
+
+# Copied in from extensions/ by scripts/extensions.mjs
+src-tauri/capabilities/extension-*.json
+crates/*/target/
+crates/*/Cargo.lock

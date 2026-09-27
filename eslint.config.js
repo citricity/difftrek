@@ -64,10 +64,10 @@ export default tseslint.config(
     languageOptions: { globals: globals.node },
   },
 
-  // This file is plain JavaScript and is not in the TypeScript project, so the
-  // type-aware rules have nothing to work from.
+  // These files are plain JavaScript run by Node and are not in the
+  // TypeScript project, so the type-aware rules have nothing to work from.
   {
-    files: ['eslint.config.js'],
+    files: ['eslint.config.js', 'scripts/**/*.mjs'],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: { globals: globals.node },
   },
