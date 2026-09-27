@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { NoteDialogs } from './NoteDialogs.tsx';
+import type { NoteDialog } from './NoteDialogs.tsx';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
 import type { AiChangelog, ResolvedHunk } from '../../types/index.ts';
 
@@ -38,8 +39,7 @@ function view(hunk: ResolvedHunk): AiChangelogView {
       changelog.logicalChanges.find((change) => change.id === id) ?? null,
     labelOf: (id) => (id === '0' ? 'A' : 'B'),
     describe: (id) =>
-      changelog.logicalChanges.find((change) => change.id === id)?.description ??
-      '',
+      changelog.logicalChanges.find((change) => change.id === id)?.description ?? '',
   };
 }
 
@@ -66,10 +66,9 @@ describe('the hunk dialog', () => {
 
   it('opens a lone logical change, because there is nothing to choose between', () => {
     open(resolved());
-    expect(screen.getByRole('button', { name: /Reset the error count/ })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: /Reset the error count/ }),
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('leaves several changes closed until the reader picks one', async () => {
@@ -95,7 +94,9 @@ describe('the hunk dialog', () => {
   });
 
   it('says so when identical hunks were given different reasons', () => {
-    open(resolved({ ambiguous: true, reasons: ['The header copy', 'The footer copy'] }));
+    open(
+      resolved({ ambiguous: true, reasons: ['The header copy', 'The footer copy'] }),
+    );
 
     expect(screen.getByText(/different reasons/)).toBeInTheDocument();
     expect(screen.getByText('The header copy')).toBeInTheDocument();
@@ -184,6 +185,61 @@ describe('the logical change dialog, given a thin payload', () => {
   });
 });
 
+describe("a docked change's hunk list", () => {
+  const second = 'src/two.ts:hunk:0';
+
+  function renderChange(placement: 'sidebar' | 'overlay', onGoToHunk = vi.fn()) {
+    const hunk = resolved();
+    const notes = view(hunk);
+    // A second hunk for the same change, so the list has something to walk.
+    notes.changelog!.hunks[second] = resolved({
+      hunkId: second,
+      reasons: ['The footer copy follows the header.'],
+    });
+
+    render(
+      <NoteDialogs
+        open={{ kind: 'change', changeId: '0' }}
+        notes={notes}
+        order={[hunk.hunkId, second]}
+        currentHunk={second}
+        onGoToHunk={onGoToHunk}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement={placement}
+      />,
+    );
+    return { onGoToHunk };
+  }
+
+  it('lists the hunks under the description, marking where the reader is', () => {
+    renderChange('sidebar');
+
+    expect(screen.getByText('2 hunks')).toBeInTheDocument();
+    expect(screen.getByText('src/one.ts')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /footer copy/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+  });
+
+  it('walks to a hunk without closing', async () => {
+    const { onGoToHunk } = renderChange('sidebar');
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /read from the database/ }),
+    );
+    expect(onGoToHunk).toHaveBeenCalledWith('src/one.ts:hunk:0');
+    // Still the change: the list is what the reader walks it from.
+    expect(screen.getByRole('heading', { name: /Logical change/ })).toBeInTheDocument();
+  });
+
+  it('is not offered in the overlay, which covers the hunks it would walk to', () => {
+    renderChange('overlay');
+    expect(screen.queryByText('2 hunks')).not.toBeInTheDocument();
+  });
+});
+
 describe('the contents dialog', () => {
   it('lists the changes with a hunk on screen, and how much each covers', async () => {
     const hunk = resolved();
@@ -225,5 +281,234 @@ describe('the contents dialog', () => {
     );
 
     expect(screen.getByText(/belongs to no logical change/)).toBeInTheDocument();
+  });
+});
+
+describe('in the sidebar', () => {
+  it('leaves out the offer to open the change, which is on screen already', () => {
+    // The accordion, expanded, is the description in full; docked, a second
+    // panel saying the same thing read as a control that did nothing.
+    const hunk = resolved();
+    render(
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+
+    expect(screen.getByText('Reset the error count')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Open this change/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  function renderPlaced(open: NoteDialog) {
+    const hunk = resolved();
+    const onClose = vi.fn();
+    const result = render(
+      <NoteDialogs
+        open={open}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={onClose}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+    return { ...result, onClose, hunk };
+  }
+
+  it('shows the note beside the diff rather than in a dialog', () => {
+    renderPlaced({ kind: 'hunk', hunkId: 'src/one.ts:hunk:0' });
+
+    // Not modal: nothing is a dialog, so nothing makes the diff inert.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const sidebar = screen.getByRole('complementary', { name: 'src/one.ts' });
+    expect(sidebar).toHaveTextContent(/read from the database/);
+  });
+
+  it('takes up no room when nothing is open', () => {
+    const { container } = renderPlaced(null);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('swaps what it shows without closing first', () => {
+    const { rerender, hunk } = renderPlaced({
+      kind: 'hunk',
+      hunkId: 'src/one.ts:hunk:0',
+    });
+
+    rerender(
+      <NoteDialogs
+        open={{ kind: 'change', changeId: '0' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />,
+    );
+
+    expect(
+      screen.getByRole('complementary', { name: /Logical change/ }),
+    ).toHaveTextContent('Reset the error count');
+    expect(screen.queryByText(/read from the database/)).not.toBeInTheDocument();
+  });
+
+  it('gives focus back to whatever opened it, however it was closed', async () => {
+    // The overlay gets this from `showModal`; docked, focus would otherwise
+    // land on the body and tabbing would restart at the top of the app. It
+    // happens on the close itself, so Escape — which the app's shortcuts
+    // handle, not this button — hands focus back too.
+    const hunk = resolved();
+    const marker = document.createElement('button');
+    document.body.append(marker);
+    marker.focus();
+
+    const props = (open: NoteDialog) => (
+      <NoteDialogs
+        open={open}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+      />
+    );
+    const { rerender } = render(props(null));
+    rerender(props({ kind: 'hunk', hunkId: hunk.hunkId }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(document.activeElement).not.toBe(marker);
+
+    // The parent closing it — what Escape does — is what hands focus back.
+    rerender(props(null));
+    expect(document.activeElement).toBe(marker);
+    marker.remove();
+  });
+
+  it('closes from its own button', async () => {
+    const { onClose } = renderPlaced({ kind: 'contents' });
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('the sidebar edge', () => {
+  function renderEdge(width = 360) {
+    const hunk = resolved();
+    const onSidebarResize = vi.fn();
+    const props = (sidebarWidth: number) => (
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="sidebar"
+        sidebarWidth={sidebarWidth}
+        onSidebarResize={onSidebarResize}
+      />
+    );
+    const { rerender } = render(props(width));
+
+    return {
+      edge: () => screen.getByRole('separator', { name: 'Resize the notes sidebar' }),
+      // The width is the parent's to hold, so a step is only really kept if
+      // the next one is measured from it.
+      setWidth: (next: number) => rerender(props(next)),
+      onSidebarResize,
+    };
+  }
+
+  it('says how wide the sidebar is', () => {
+    expect(renderEdge(420).edge()).toHaveAttribute('aria-valuenow', '420');
+  });
+
+  it('moves with the arrow keys, and steps on from where it left off', async () => {
+    const user = userEvent.setup();
+    const { edge, setWidth, onSidebarResize } = renderEdge();
+    edge().focus();
+
+    // The edge is on the left: left widens, right narrows. Each press shows
+    // the new width; the key coming up is what saves it, so that holding the
+    // key down writes the settings file once rather than thirty times a
+    // second.
+    await user.keyboard('{ArrowLeft>}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(376, false);
+    await user.keyboard('{/ArrowLeft}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(376, true);
+
+    setWidth(376);
+    await user.keyboard('{ArrowLeft}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(392, true);
+  });
+
+  it('will not go narrower than the minimum', async () => {
+    const { edge, onSidebarResize } = renderEdge(240);
+    edge().focus();
+
+    await userEvent.keyboard('{ArrowRight}');
+    expect(onSidebarResize).toHaveBeenLastCalledWith(240, true);
+  });
+
+  it('saves nothing for a click that moves nothing', async () => {
+    // A drag starts from the width as drawn, which the window may have capped
+    // below the stored one — committing that on a bare click would shrink a
+    // width the reader never touched.
+    const { edge, onSidebarResize } = renderEdge(600);
+    await userEvent.click(edge());
+    expect(onSidebarResize).not.toHaveBeenCalled();
+  });
+
+  it('goes back to the default on a double click', async () => {
+    const { edge, onSidebarResize } = renderEdge(600);
+    await userEvent.dblClick(edge());
+    expect(onSidebarResize).toHaveBeenCalledTimes(1);
+    expect(onSidebarResize).toHaveBeenCalledWith(360, true);
+  });
+});
+
+describe('in the top bar', () => {
+  it('shows the note above the diff, not modal and not resizable', () => {
+    const hunk = resolved();
+    render(
+      <NoteDialogs
+        open={{ kind: 'hunk', hunkId: hunk.hunkId }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="topbar"
+        onSidebarResize={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'src/one.ts' })).toHaveTextContent(
+      /read from the database/,
+    );
+    // Its height is a share of the window; the sidebar's width handle is not
+    // for it.
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+  });
+
+  it('takes up no room when nothing is open', () => {
+    const hunk = resolved();
+    const { container } = render(
+      <NoteDialogs
+        open={null}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+        placement="topbar"
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });
