@@ -141,6 +141,53 @@ describe('walking a change from the bar', () => {
   });
 });
 
+describe('picking a change from the gutter', () => {
+  /** The toolbar's global readout: which hunk of the whole diff is current. */
+  async function globalPosition(): Promise<string> {
+    return page.evaluate(
+      () =>
+        [...document.querySelectorAll('span')]
+          .map((span) => span.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+          .find((text) => /^[–\d]+ \/ \d+$/.test(text)) ?? '',
+    );
+  }
+
+  // Its own page: this is about where a click lands from a known start, which
+  // the walk above has moved on from.
+  beforeAll(async () => {
+    page = await app.open({ width: 1400, height: 600 });
+    // A click on the document, so the keys reach this page rather than the
+    // one the tests above left open.
+    await page.locator('[data-row]').first().click();
+  }, 60000);
+
+  it('takes the reader to the hunk whose letter was picked', async () => {
+    await page.keyboard.press('Shift+N');
+    await waitForHunk('Hunk 1 / 3');
+    expect((await counters()).change).toBe('Change 1 / 2');
+    expect(await globalPosition()).toBe('1 / 6');
+
+    // The other change's letter, drawn on a hunk further down: the cursor
+    // moves to that hunk, rather than staying behind while the bar renames
+    // itself.
+    await page
+      .getByRole('button', { name: /^Logical change B/ })
+      .first()
+      .click();
+
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('span')].some((span) =>
+        /^Change 2 \/ 2$/.test(span.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+      ),
+    );
+
+    // The global readout is what distinguishes moving from renaming: both
+    // changes cover three hunks, so "Hunk 1 / 3" alone would not.
+    expect(await globalPosition()).toBe('2 / 6');
+    expect((await counters()).hunk).toBe('Hunk 1 / 3');
+  });
+});
+
 describe('the page itself', () => {
   it('raises no errors while all that happens', () => {
     expect(app.pageErrors).toEqual([]);

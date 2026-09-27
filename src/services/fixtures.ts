@@ -25,8 +25,10 @@ import type {
 } from '../types/index.ts';
 import {
   DEFAULT_SETTINGS,
+  MAX_NOTE_SIDEBAR_WIDTH,
   MAX_WRAP_LENGTH,
   MAX_ZOOM,
+  MIN_NOTE_SIDEBAR_WIDTH,
   MIN_WRAP_LENGTH,
   MIN_ZOOM,
 } from '../types/index.ts';
@@ -468,6 +470,22 @@ async function resolveFixture(
         zoom: Math.min(
           MAX_ZOOM,
           Math.max(MIN_ZOOM, requested.zoom ?? settings.zoom),
+        ),
+        notePlacement:
+          requested.notePlacement === undefined
+            ? settings.notePlacement
+            : requested.notePlacement === 'sidebar' ||
+                requested.notePlacement === 'topbar'
+              ? requested.notePlacement
+              : 'overlay',
+        noteSidebarWidth: Math.round(
+          Math.min(
+            MAX_NOTE_SIDEBAR_WIDTH,
+            Math.max(
+              MIN_NOTE_SIDEBAR_WIDTH,
+              requested.noteSidebarWidth ?? settings.noteSidebarWidth,
+            ),
+          ),
         ),
       };
       return delay(settings);

@@ -28,6 +28,18 @@ export function useSettings(): SettingsState {
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
 
+  /**
+   * Which save is the current one.
+   *
+   * Saves are fired as they are asked for, and nothing promises they come back
+   * in that order — a dragged sidebar can ask several times a second. An older
+   * answer adopted last would put a width back that the reader has already
+   * moved on from, and write it to disk besides. Only the latest is adopted;
+   * the rest are left to land in the file in whatever order the backend
+   * settles them, which is what the last request says anyway.
+   */
+  const latest = useRef(0);
+
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -51,17 +63,21 @@ export function useSettings(): SettingsState {
     setLocal((previous) => {
       const next = { ...previous, ...change };
 
+      const ticket = (latest.current += 1);
+
       void (async () => {
         try {
           const stored = await setSettings(next);
-          if (!alive.current) return;
+          if (!alive.current || ticket !== latest.current) return;
 
           setError(null);
           // What came back is what was stored, clamped; adopting it keeps the
           // dialog honest about a value the backend narrowed.
           setLocal(stored);
         } catch (thrown) {
-          if (alive.current) setError(AppError.from(thrown).message);
+          if (alive.current && ticket === latest.current) {
+            setError(AppError.from(thrown).message);
+          }
         }
       })();
 

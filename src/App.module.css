@@ -16,3 +16,11 @@
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-toolbar);
 }
+
+/* The document, and the notes sidebar beside it when that is open. A row, so
+   the sidebar takes its width from the document rather than covering it. */
+.main {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
