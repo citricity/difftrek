@@ -26,6 +26,7 @@ import {
   lineAreaWidth,
   offsetOfAnchor,
   offsetOfTarget,
+  placeholdersIn,
   rowAtOffset,
   rowKey,
   visibleRange,
@@ -63,6 +64,7 @@ import type { HunkMarkers } from '../../lib/noteMarkers.ts';
 import type { DocumentNotes } from '../../hooks/useAiChangelog.ts';
 import { ImageRow } from './ImageRow.tsx';
 import { NoticeRow } from './NoticeRow.tsx';
+import { PlaceholderRow } from './PlaceholderRow.tsx';
 import styles from './DiffDocument.module.css';
 import rowStyles from './DiffRows.module.css';
 
@@ -97,6 +99,13 @@ interface Props {
   /** Go to a file chosen from the file list. */
   onSelectFile: (fileId: string) => void;
   onVisibleFileChange: (fileId: string) => void;
+  /**
+   * Told which files on screen, or just beyond it, are still waiting for their
+   * diff, so they can be loaded. Prefetching around the visible file reaches
+   * two files either side; a screen of short files can show more than that,
+   * and each would otherwise go on shimmering until the reader scrolled to it.
+   */
+  onPlaceholdersInView?: (fileIds: string[]) => void;
   onToggleCollapse: (fileId: string) => void;
   onLoadFully: (fileId: string) => void;
   onExpandContext: (fileId: string, range: LineRange) => void;
@@ -140,6 +149,7 @@ export function DiffDocument({
   onScrollToChange,
   onSelectFile,
   onVisibleFileChange,
+  onPlaceholdersInView,
   onToggleCollapse,
   onLoadFully,
   onExpandContext,
@@ -479,6 +489,26 @@ export function DiffDocument({
   const range = visibleRange(model, scrollTop, viewportHeight, OVERSCAN);
   const endHeight = endOfDocumentHeight(viewportHeight, metrics);
 
+  /**
+   * The rendered range's waiting files, as one string so the effect below runs
+   * when the set changes rather than on every scroll frame. Joined on NUL, the
+   * one character a path cannot contain.
+   */
+  const waitingKey = placeholdersIn(model, range).join('\0');
+
+  useEffect(() => {
+    if (waitingKey !== '') onPlaceholdersInView?.(waitingKey.split('\0'));
+  }, [waitingKey, onPlaceholdersInView]);
+
+  /**
+   * Whether anything actually on screen is still loading — no overscan, since
+   * rows the reader cannot see are not what they are waiting for. While it is,
+   * the end-of-document message stays away: with files still arriving it is
+   * not yet the end, and "that's every change" would not yet be true.
+   */
+  const loadingInView =
+    placeholdersIn(model, visibleRange(model, scrollTop, viewportHeight, 0)).length > 0;
+
   // A pane is half the viewport less the divider; in the unified view the
   // canvas is as wide as the content and the viewport scrolls over it.
   const paneWidth = lineAreaWidth(viewportWidth, 'split');
@@ -698,14 +728,16 @@ export function DiffDocument({
 
       case 'placeholder':
         pinned.push(
-          <div
+          <PlaceholderRow
             key={key}
-            style={style}
-            className={`${rowStyles.row} ${rowStyles.placeholder}`}
-            aria-label={`Loading ${file.meta.path}`}
-          >
-            <span className={rowStyles.shimmer} />
-          </div>,
+            style={{
+              ...style,
+              height: model.offsets[index + 1] - model.offsets[index],
+            }}
+            fileId={file.meta.id}
+            path={file.meta.path}
+            lines={row.lines}
+          />,
         );
         break;
 
@@ -776,10 +808,12 @@ export function DiffDocument({
           >
             {pinned}
 
-            <EndOfDocument
-              style={{ top: model.totalHeight, height: endHeight }}
-              fileCount={files.length}
-            />
+            {!loadingInView && (
+              <EndOfDocument
+                style={{ top: model.totalHeight, height: endHeight }}
+                fileCount={files.length}
+              />
+            )}
           </div>
         </div>
       </div>

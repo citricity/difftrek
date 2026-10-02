@@ -497,37 +497,49 @@
   background: var(--surface-hover);
 }
 
+/* A file whose diff is on its way: a skeleton of code lines, one row each,
+   starting where code starts. Its height is the model's — lines times the row
+   height — so nothing here may add a border or vertical padding. */
 .placeholder {
-  height: var(--placeholder-height);
-  padding: 0 14px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-top: 0;
-  color: var(--text-faint);
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 var(--content-padding) 0 var(--gutter-width);
+  font-family: var(--font-mono);
+  font-size: var(--code-font-size);
+  overflow: hidden;
 }
 
-.shimmer {
-  width: 40%;
-  max-width: 320px;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(
+.skeletonLine {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: var(--row-height);
+}
+
+/* The highlight sweeps at a fixed pixel size, so it crosses every line at the
+   same pace and the block shimmers as one, whatever each line's length. */
+.skeletonText {
+  height: 0.75em;
+  border-radius: var(--radius-sm);
+  background-color: var(--border-subtle);
+  background-image: linear-gradient(
     90deg,
-    var(--border-subtle) 0%,
+    transparent 0,
     var(--border) 50%,
-    var(--border-subtle) 100%
+    transparent 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  background-repeat: no-repeat;
+  background-size: 240px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 @keyframes shimmer {
   from {
-    background-position: 200% 0;
+    background-position: -240px 0;
   }
 
   to {
-    background-position: -200% 0;
+    background-position: 960px 0;
   }
 }
 
@@ -548,9 +560,22 @@
 
 .endContent {
   display: flex;
+  animation: end-appear 240ms ease-out;
   gap: 20px;
   align-items: center;
   max-width: calc(100% - 32px);
+}
+
+/* The message waits for the rows on screen to finish loading (see
+   `DiffDocument`), and then eases in rather than popping. */
+@keyframes end-appear {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Single-colour line art used as a mask, so its colour is a token. Which

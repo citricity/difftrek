@@ -17,7 +17,13 @@
  * even in a repository with a very large change set.
  */
 
-import type { DiffHunk, DocumentFile, LineRange, ViewMode } from '../types/index.ts';
+import type {
+  ChangedFile,
+  DiffHunk,
+  DocumentFile,
+  LineRange,
+  ViewMode,
+} from '../types/index.ts';
 import { imageMimeType } from './images.ts';
 import { pairHunkLines } from './pairing.ts';
 import { splitGap } from './ranges.ts';
@@ -75,7 +81,11 @@ export type DocumentRow =
    * reaches the geometry.
    */
   | { kind: 'image'; fileId: string }
-  | { kind: 'placeholder'; fileId: string }
+  /**
+   * A file whose diff has not arrived, drawn as a skeleton of `lines` code
+   * rows — see `placeholderLines`.
+   */
+  | { kind: 'placeholder'; fileId: string; lines: number }
   | { kind: 'spacer'; fileId: string };
 
 export interface RowMetrics {
@@ -84,7 +94,6 @@ export interface RowMetrics {
   fileHeaderHeight: number;
   expanderHeight: number;
   noticeHeight: number;
-  placeholderHeight: number;
   /** Height of the before-and-after row of a changed image. */
   imageHeight: number;
   /** Vertical gap after each file. */
@@ -185,7 +194,7 @@ function heightOf(row: DocumentRow, metrics: RowMetrics): number {
     case 'notice':
       return metrics.noticeHeight;
     case 'placeholder':
-      return metrics.placeholderHeight;
+      return metrics.lineHeight * row.lines;
     case 'image':
       return metrics.imageHeight;
     case 'spacer':
@@ -213,6 +222,27 @@ function newSpan(hunk: DiffHunk): LineRange {
 
 function oldSpan(hunk: DiffHunk): LineRange {
   return span(hunk.oldStart, hunk.oldLines);
+}
+
+/** Fewest skeleton lines a loading file shows: enough to read as text. */
+export const PLACEHOLDER_MIN_LINES = 3;
+
+/**
+ * Most skeleton lines a loading file shows. Past this a skeleton stops looking
+ * like a file on its way and starts looking like a page that failed to load.
+ */
+export const PLACEHOLDER_MAX_LINES = 12;
+
+/**
+ * How many skeleton lines stand in for a file whose diff has not arrived.
+ *
+ * Taken from the counts Git reported with the file list, so a one-line fix
+ * shows a short block and a rewrite a tall one, and the document moves less
+ * when the real rows replace it. Binary files have no counts and get the least.
+ */
+export function placeholderLines(meta: ChangedFile): number {
+  const changed = (meta.additions ?? 0) + (meta.deletions ?? 0);
+  return Math.min(PLACEHOLDER_MAX_LINES, Math.max(PLACEHOLDER_MIN_LINES, changed));
 }
 
 /** Which notice, if any, stands in for a file's body. */
@@ -257,7 +287,7 @@ export function buildRowModel(
     if (notice !== null) {
       rows.push({ kind: 'notice', fileId, notice });
     } else if (file.diff === null) {
-      rows.push({ kind: 'placeholder', fileId });
+      rows.push({ kind: 'placeholder', fileId, lines: placeholderLines(file.meta) });
     } else if (file.diff.binary) {
       // `noticeFor` only lets a binary file through when it is an image.
       rows.push({ kind: 'image', fileId });
@@ -455,6 +485,23 @@ export function visibleRange(
     start: Math.max(0, first - overscan),
     end: Math.min(model.rows.length, last + overscan + 1),
   };
+}
+
+/**
+ * The files in a range of rows whose diff has not arrived yet, in document
+ * order.
+ *
+ * This is what "still loading on screen" means: a placeholder row is exactly
+ * a file waiting for its diff, and it is replaced as soon as the diff — or the
+ * error — arrives.
+ */
+export function placeholdersIn(model: RowModel, range: RowRange): string[] {
+  const fileIds: string[] = [];
+  for (let index = range.start; index < range.end; index += 1) {
+    const row = model.rows[index];
+    if (row.kind === 'placeholder') fileIds.push(row.fileId);
+  }
+  return fileIds;
 }
 
 /**
