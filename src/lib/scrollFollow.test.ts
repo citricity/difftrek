@@ -19,7 +19,6 @@ const METRICS: RowMetrics = {
   fileHeaderHeight: 40,
   expanderHeight: 24,
   noticeHeight: 50,
-  placeholderHeight: 60,
   imageHeight: 240,
   fileGap: 10,
   charWidth: 8,

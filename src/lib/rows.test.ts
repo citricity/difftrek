@@ -19,6 +19,10 @@ import {
   fileAtOffset,
   offsetOfAnchor,
   offsetOfTarget,
+  PLACEHOLDER_MAX_LINES,
+  PLACEHOLDER_MIN_LINES,
+  placeholderLines,
+  placeholdersIn,
   rowAtOffset,
   rowKey,
   visibleRange,
@@ -39,7 +43,6 @@ const METRICS: RowMetrics = {
   fileHeaderHeight: 40,
   expanderHeight: 24,
   noticeHeight: 50,
-  placeholderHeight: 60,
   imageHeight: 240,
   fileGap: 10,
   charWidth: 8,
@@ -147,6 +150,54 @@ describe('buildRowModel', () => {
 
     expect(model.rows).toHaveLength(0);
     expect(model.totalHeight).toBe(0);
+  });
+});
+
+describe('placeholders', () => {
+  it('sizes a loading file from the changes Git counted for it', () => {
+    // A one-line fix shows a short skeleton and a rewrite a tall one, so the
+    // document moves less when the real rows arrive.
+    expect(placeholderLines(makeMeta('a', { additions: 4, deletions: 3 }))).toBe(7);
+    expect(placeholderLines(makeMeta('a', { additions: 1, deletions: 0 }))).toBe(
+      PLACEHOLDER_MIN_LINES,
+    );
+    expect(placeholderLines(makeMeta('a', { additions: 900, deletions: 40 }))).toBe(
+      PLACEHOLDER_MAX_LINES,
+    );
+    // Binary files come without counts.
+    expect(
+      placeholderLines(
+        makeMeta('a', { additions: null, deletions: null, binary: true }),
+      ),
+    ).toBe(PLACEHOLDER_MIN_LINES);
+  });
+
+  it('is exactly that many lines tall', () => {
+    const pending = {
+      ...pendingFile('a.ts'),
+      meta: makeMeta('a.ts', { additions: 5, deletions: 0 }),
+    };
+    const model = buildRowModel([pending], METRICS);
+    const index = model.rows.findIndex((row) => row.kind === 'placeholder');
+
+    expect(model.offsets[index + 1] - model.offsets[index]).toBe(
+      5 * METRICS.lineHeight,
+    );
+  });
+
+  it('names the files still waiting in a range of rows, in order', () => {
+    const model = buildRowModel(
+      [pendingFile('a.ts'), loadedFile('b.ts', 1), pendingFile('c.ts')],
+      METRICS,
+    );
+
+    expect(placeholdersIn(model, { start: 0, end: model.rows.length })).toEqual([
+      'a.ts',
+      'c.ts',
+    ]);
+    // Only what the range covers: the first file alone.
+    expect(placeholdersIn(model, { start: 0, end: 3 })).toEqual(['a.ts']);
+    expect(placeholdersIn(model, { start: 3, end: 8 })).toEqual([]);
   });
 });
 

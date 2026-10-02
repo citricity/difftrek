@@ -542,6 +542,15 @@ function Session({ onReload }: { onReload: () => void }) {
     [loadFully],
   );
 
+  // A file already loaded or in flight is a no-op, so this can be told the
+  // same files again as the reader scrolls.
+  const loadFiles = useCallback(
+    (fileIds: string[]) => {
+      for (const fileId of fileIds) void ensureLoaded(fileId);
+    },
+    [ensureLoaded],
+  );
+
   /**
    * The notes, wherever Settings puts them: a dialog over the diff, a sidebar
    * beside it (both mounted inside the document's row), or a bar above it
@@ -683,6 +692,7 @@ function Session({ onReload }: { onReload: () => void }) {
             onScrollToChange={navigation.goTo}
             onSelectFile={navigation.goToFile}
             onVisibleFileChange={prefetchAround}
+            onPlaceholdersInView={loadFiles}
             onToggleCollapse={toggleCollapse}
             onLoadFully={handleLoadFully}
             onExpandContext={revealContext}
