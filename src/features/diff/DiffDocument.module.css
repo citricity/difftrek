@@ -41,6 +41,11 @@
    to the viewport's by the component, which is exactly what gives `left: 0`
    room to shift within the wider canvas. */
 .pinned {
+  /* File headers in the document let the change bars show through, so a
+     change that carries on into the next file reads as one bar. Only here:
+     the sticky header above has code scrolling under it and stays opaque. */
+  --file-header-bg: color-mix(in srgb, var(--surface) 82%, transparent);
+
   position: sticky;
   left: 0;
   z-index: 1;

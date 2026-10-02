@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildRowModel } from '../../lib/rows.ts';
 import type { RowMetrics } from '../../lib/rows.ts';
 import { loadedFile, pendingFile } from '../../test/factories.ts';
-import type { DocumentFile } from '../../types/index.ts';
+import type { DocumentFile, ResolvedHunk } from '../../types/index.ts';
+import type { DocumentNotes } from '../../hooks/useAiChangelog.ts';
 import { DiffDocument } from './DiffDocument.tsx';
 
 const METRICS: RowMetrics = {
@@ -18,7 +19,11 @@ const METRICS: RowMetrics = {
   contentPadding: 16,
 };
 
-function show(files: DocumentFile[], onPlaceholdersInView = vi.fn()) {
+function show(
+  files: DocumentFile[],
+  onPlaceholdersInView = vi.fn(),
+  notes: DocumentNotes | null = null,
+) {
   render(
     <DiffDocument
       files={files}
@@ -36,6 +41,7 @@ function show(files: DocumentFile[], onPlaceholdersInView = vi.fn()) {
       onExpandContext={vi.fn()}
       wrapColumn={null}
       viewMode="unified"
+      notes={notes}
     />,
   );
   return { onPlaceholdersInView };
@@ -84,5 +90,56 @@ describe('the end of the document', () => {
     expect(onPlaceholdersInView).toHaveBeenCalledWith(
       files.map((file) => file.meta.id),
     );
+  });
+});
+
+/** Notes placing each hunk in the logical changes given for it. */
+function notesFor(membership: Record<string, string[]>): DocumentNotes {
+  const hunks: Record<string, ResolvedHunk> = Object.fromEntries(
+    Object.entries(membership).map(([hunkId, logicalChangeIds]) => [
+      hunkId,
+      { hunkId, reasons: ['why'], logicalChangeIds, ambiguous: false, partial: false },
+    ]),
+  );
+
+  return {
+    hunks,
+    state: () => 'explained',
+    labelOf: (change) => (change === 'x' ? 'A' : 'B'),
+    describe: () => 'A change',
+    onOpenHunk: vi.fn(),
+    onOpenChange: vi.fn(),
+  };
+}
+
+describe('logical change bars', () => {
+  it('joins a change across the hunks it covers, in its lane colour', () => {
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': ['x'], 'a.ts:hunk:1': ['x'] }),
+    );
+
+    const bars = screen.getByTestId('change-bars');
+    expect(bars.children).toHaveLength(1);
+    expect(
+      (bars.children[0] as HTMLElement).style.getPropertyValue('--note-lane'),
+    ).toBe('var(--note-lane-0)');
+  });
+
+  it('hooks the second of two changes starting together across to its badge', () => {
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': ['x', 'y'], 'a.ts:hunk:1': ['y'] }),
+    );
+
+    // x: one straight bar. y: a hook from its badge, then the bar.
+    expect(screen.getByTestId('change-bars').children).toHaveLength(3);
+  });
+
+  it('draws nothing without a changelog', () => {
+    show([loadedFile('a.ts', 2)]);
+    expect(screen.queryByTestId('change-bars')).toBeNull();
   });
 });
