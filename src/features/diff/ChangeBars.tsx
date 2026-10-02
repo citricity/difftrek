@@ -9,113 +9,23 @@
  * when long lines are scrolled sideways, just as the gutter does.
  *
  * The layer sits above the rows, so a bar stops at the edge of each badge
- * instead of running under it, and hooks across to a badge that is not over
- * its own slot. Pointer events pass straight through to the badges and code.
+ * instead of running under it, and sweeps across to a badge that is not over
+ * its own slot, on whichever side that badge is (see `changeBarGeometry.ts`). Pointer events pass straight through to the badges and code.
  */
 
 import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import type { ChangeBarSegment } from '../../lib/changeBars.ts';
 import { laneColour } from '../../lib/noteMarkers.ts';
+import {
+  BADGE_SIZE,
+  crossesBadge,
+  hookSide,
+  hookStrokes,
+  HOOK_HEIGHT,
+  slotLeft,
+} from './changeBarGeometry.ts';
 import styles from './DiffRows.module.css';
-
-/*
- * Geometry, in pixels. These match `.notes`, `.lane` and `.badge` in
- * DiffRows.module.css; the badges are laid out by flexbox there, and placed
- * by arithmetic here, so both have to change together.
- */
-/** `.notes`'s left padding: where the first badge starts. */
-const NOTES_PADDING = 2;
-/** `.badge`'s size, and the `.lane` gap between two badges. */
-const BADGE_SIZE = 15;
-const BADGE_GAP = 2;
-/** A bar's width, and how far apart side-by-side bars sit. */
-const BAR_WIDTH = 3;
-const SLOT_PITCH = 5;
-/** The first slot, centred under the first badge. */
-const FIRST_SLOT = NOTES_PADDING + (BADGE_SIZE - BAR_WIDTH) / 2;
-/** How tall the curve is where a bar sweeps across to its badge. */
-const HOOK_HEIGHT = 8;
-/**
- * The radius the stroke takes round the badge's far corner, a little more than
- * the badge's own 3px. The corner is drawn 3px on the near edge and 1px down
- * the side, exactly over the badge's outline, so the curve tapers from the
- * bar's weight into the badge's.
- */
-const CORNER = 5;
-
-/*
- * The last slot ends at FIRST_SLOT + (MAX_BAR_SLOTS - 1) * SLOT_PITCH +
- * BAR_WIDTH = 36px, which is `--change-bars-width` in tokens.css: the expander
- * keeps its buttons past it.
- */
-
-function slotLeft(slot: number): number {
-  return FIRST_SLOT + slot * SLOT_PITCH;
-}
-
-function badgeLeft(index: number): number {
-  return NOTES_PADDING + index * (BADGE_SIZE + BADGE_GAP);
-}
-
-/**
- * Whether a bar has to sweep across to reach its badge: the badge sits wholly
- * beside the bar's slot rather than over it. A wider label (AA) makes a badge
- * a little wider than this assumes, which moves the sweep's end a pixel or two;
- * it still lands on the badge.
- */
-function needsHook(slot: number, badge: number | null): badge is number {
-  return badge !== null && badgeLeft(badge) >= slotLeft(slot) + BAR_WIDTH;
-}
-
-/**
- * The two strokes that carry a bar onto a badge beside it: a curve from the
- * bar running along the badge's near edge, then a corner wrapping its far
- * corner into the badge's outline, so the bar and the badge read as one line.
- *
- * `edge` is the badge's edge the bar arrives at — its top for the end of a
- * run, its bottom for the start — and `y` is where that edge is.
- */
-function hookStrokes(
-  barLeft: number,
-  badge: number,
-  edge: 'top' | 'bottom',
-  y: number,
-): CSSProperties[] {
-  const right = badgeLeft(badge) + BADGE_SIZE;
-  const top = edge === 'top';
-
-  return [
-    {
-      left: barLeft,
-      top: top ? y + 1 - HOOK_HEIGHT : y - 1,
-      width: right - CORNER - barLeft,
-      height: HOOK_HEIGHT,
-      borderLeftWidth: BAR_WIDTH,
-      [top ? 'borderBottomWidth' : 'borderTopWidth']: BAR_WIDTH,
-      [top ? 'borderBottomLeftRadius' : 'borderTopLeftRadius']: HOOK_HEIGHT,
-    },
-    {
-      left: right - CORNER,
-      top: top ? y - 2 : y - CORNER,
-      width: CORNER,
-      height: CORNER + 2,
-      borderRightWidth: 1,
-      [top ? 'borderTopWidth' : 'borderBottomWidth']: BAR_WIDTH,
-      [top ? 'borderTopRightRadius' : 'borderBottomRightRadius']: CORNER,
-    },
-  ];
-}
-
-/** Whether a bar in this slot runs through any of a row's first `badges` badges. */
-function crossesBadge(slot: number, badges: number): boolean {
-  const left = slotLeft(slot);
-  for (let index = 0; index < badges; index += 1) {
-    const badgeLeft = NOTES_PADDING + index * (BADGE_SIZE + BADGE_GAP);
-    if (left < badgeLeft + BADGE_SIZE && left + BAR_WIDTH > badgeLeft) return true;
-  }
-  return false;
-}
 
 /** Room left either side of a badge a bar steps around. */
 const BADGE_CLEARANCE = 1;
@@ -166,13 +76,15 @@ function ChangeBarsImpl({
     let straightFrom = from;
     let straightTo = to;
 
-    if (needsHook(slot, startBadge)) {
-      strokes.push(...hookStrokes(left, startBadge, 'bottom', from));
+    const startSide = startBadge === null ? null : hookSide(slot, startBadge);
+    if (startBadge !== null && startSide !== null) {
+      strokes.push(...hookStrokes(slot, startBadge, startSide, 'bottom', from));
       straightFrom = from - 1 + HOOK_HEIGHT - 1;
     }
 
-    if (needsHook(slot, endBadge)) {
-      strokes.push(...hookStrokes(left, endBadge, 'top', to));
+    const endSide = endBadge === null ? null : hookSide(slot, endBadge);
+    if (endBadge !== null && endSide !== null) {
+      strokes.push(...hookStrokes(slot, endBadge, endSide, 'top', to));
       straightTo = to + 1 - HOOK_HEIGHT + 1;
     }
 

@@ -28,10 +28,12 @@ interface Props {
   offset: number;
   active: boolean;
   /**
-   * Logical change markers for this line, drawn once per row rather than once
-   * per pane: the old side carries them, or the new side when the row has no
-   * old line at all. An absent pane renders no gutter, so leaving them with the
-   * old side unconditionally loses every marker on an addition.
+   * Logical change markers for this line, drawn once per row, always at the
+   * left edge: the notes column is the document's, not a pane's, and the
+   * change bars run down it. A row with no old line has no left gutter, so
+   * there the markers sit over the absent pane, where the gutter would be —
+   * putting them in the right pane instead left them half a window away from
+   * their bar.
    *
    * The column itself is drawn in both panes regardless, because the two must
    * stay the same width for the wrap column they share to mean anything.
@@ -155,16 +157,18 @@ function SplitLineRowImpl({
         entry={left}
         wrapColumn={wrapColumn}
         offset={offset}
-        notes={left === null ? undefined : notes}
+        notes={notes}
       />
       <span className={styles.paneDivider} aria-hidden="true" />
-      <Pane
-        side="right"
-        entry={right}
-        wrapColumn={wrapColumn}
-        offset={offset}
-        notes={left === null ? notes : undefined}
-      />
+      <Pane side="right" entry={right} wrapColumn={wrapColumn} offset={offset} />
+      {left === null && notes != null && (
+        // Outside the absent pane, which is faded: the letters are not.
+        <span className={styles.absentNotes}>
+          <span className={styles.notes}>
+            <span className={styles.lane}>{notes}</span>
+          </span>
+        </span>
+      )}
     </div>
   );
 }

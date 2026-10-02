@@ -115,6 +115,12 @@ export function buildChangeBars(
     }
   }
 
+  // In row order, so each bar can find the badges it passes by bisection
+  // rather than by scanning every badge in the document.
+  const badgeRowList = [...badgeRows]
+    .map(([row, badges]) => ({ row, badges }))
+    .sort((left, right) => left.row - right.row);
+
   // Walk the hunks in document order, opening a run at each start marker and
   // closing it at the matching end.
   const open = new Map<string, string>();
@@ -160,15 +166,11 @@ export function buildChangeBars(
 
       // The bar's own end rows only count where it has no badge there: with
       // one, it stops at that badge's edge and never reaches the others.
-      const crossings = [...badgeRows]
-        .filter(
-          ([row]) =>
-            (row > first && row < last) ||
-            (row === first && startBadge === null) ||
-            (row === last && endBadge === null),
-        )
-        .sort(([left], [right]) => left - right)
-        .map(([row, badges]) => ({ row, badges }));
+      const crossings = badgeRowsBetween(
+        badgeRowList,
+        startBadge === null ? first : first + 1,
+        endBadge === null ? last : last - 1,
+      );
 
       return {
         change,
@@ -203,4 +205,30 @@ export function buildChangeBars(
   }
 
   return placed;
+}
+
+/**
+ * The badge rows from `from` to `to` inclusive, out of a list sorted by row.
+ *
+ * Bisection, because a long document has a bar and a pair of badges for every
+ * change, and checking every badge for every bar would be quadratic in them.
+ */
+function badgeRowsBetween(
+  rows: readonly { row: number; badges: number }[],
+  from: number,
+  to: number,
+): { row: number; badges: number }[] {
+  let low = 0;
+  let high = rows.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (rows[middle].row < from) low = middle + 1;
+    else high = middle;
+  }
+
+  const found: { row: number; badges: number }[] = [];
+  for (let index = low; index < rows.length && rows[index].row <= to; index += 1) {
+    found.push(rows[index]);
+  }
+  return found;
 }
