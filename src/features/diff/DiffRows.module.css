@@ -749,20 +749,11 @@
 }
 
 /* Where a bar's slot is not under its badge — the second of two changes
-   starting on one row — it curves across to meet it. */
+   meeting on one row — it sweeps across along the badge's edge and wraps its
+   far corner, so bar and outline read as one line. Which borders each stroke
+   draws, and their radii, are set inline (see `hookStrokes`). */
 .changeBarHook {
   position: absolute;
   box-sizing: border-box;
   border: 0 solid var(--note-lane);
-  border-left-width: 3px;
-}
-
-.changeBarHookTop {
-  border-top-width: 3px;
-  border-top-left-radius: 6px;
-}
-
-.changeBarHookBottom {
-  border-bottom-width: 3px;
-  border-bottom-left-radius: 6px;
 }

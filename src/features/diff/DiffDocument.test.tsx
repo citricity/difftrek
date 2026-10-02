@@ -134,8 +134,9 @@ describe('logical change bars', () => {
       notesFor({ 'a.ts:hunk:0': ['x', 'y'], 'a.ts:hunk:1': ['y'] }),
     );
 
-    // x: one straight bar. y: a hook from its badge, then the bar.
-    expect(screen.getByTestId('change-bars').children).toHaveLength(3);
+    // x: one straight bar. y: a sweep and a corner round its badge, then the
+    // bar.
+    expect(screen.getByTestId('change-bars').children).toHaveLength(4);
   });
 
   it('draws nothing without a changelog', () => {

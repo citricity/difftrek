@@ -34,8 +34,15 @@ const BAR_WIDTH = 3;
 const SLOT_PITCH = 5;
 /** The first slot, centred under the first badge. */
 const FIRST_SLOT = NOTES_PADDING + (BADGE_SIZE - BAR_WIDTH) / 2;
-/** How tall the curve is where a bar hooks across to its badge. */
-const HOOK_HEIGHT = 6;
+/** How tall the curve is where a bar sweeps across to its badge. */
+const HOOK_HEIGHT = 8;
+/**
+ * The radius the stroke takes round the badge's far corner, a little more than
+ * the badge's own 3px. The corner is drawn 3px on the near edge and 1px down
+ * the side, exactly over the badge's outline, so the curve tapers from the
+ * bar's weight into the badge's.
+ */
+const CORNER = 5;
 
 /*
  * The last slot ends at FIRST_SLOT + (MAX_BAR_SLOTS - 1) * SLOT_PITCH +
@@ -47,21 +54,57 @@ function slotLeft(slot: number): number {
   return FIRST_SLOT + slot * SLOT_PITCH;
 }
 
-function badgeCentre(index: number): number {
-  return NOTES_PADDING + index * (BADGE_SIZE + BADGE_GAP) + BADGE_SIZE / 2;
+function badgeLeft(index: number): number {
+  return NOTES_PADDING + index * (BADGE_SIZE + BADGE_GAP);
 }
 
 /**
- * How far a hook has to reach sideways from the bar to its badge, or zero when
- * the badge already sits over the bar. A wider label (AA) makes its badge a
- * little wider than this assumes, which only moves the hook a pixel or two
- * off the badge's centre — still under it.
+ * Whether a bar has to sweep across to reach its badge: the badge sits wholly
+ * beside the bar's slot rather than over it. A wider label (AA) makes a badge
+ * a little wider than this assumes, which moves the sweep's end a pixel or two;
+ * it still lands on the badge.
  */
-function hookReach(slot: number, badge: number | null): number {
-  if (badge === null) return 0;
-  const barCentre = slotLeft(slot) + BAR_WIDTH / 2;
-  const reach = badgeCentre(badge) - barCentre;
-  return reach > BADGE_SIZE / 2 ? reach + BAR_WIDTH / 2 : 0;
+function needsHook(slot: number, badge: number | null): badge is number {
+  return badge !== null && badgeLeft(badge) >= slotLeft(slot) + BAR_WIDTH;
+}
+
+/**
+ * The two strokes that carry a bar onto a badge beside it: a curve from the
+ * bar running along the badge's near edge, then a corner wrapping its far
+ * corner into the badge's outline, so the bar and the badge read as one line.
+ *
+ * `edge` is the badge's edge the bar arrives at — its top for the end of a
+ * run, its bottom for the start — and `y` is where that edge is.
+ */
+function hookStrokes(
+  barLeft: number,
+  badge: number,
+  edge: 'top' | 'bottom',
+  y: number,
+): CSSProperties[] {
+  const right = badgeLeft(badge) + BADGE_SIZE;
+  const top = edge === 'top';
+
+  return [
+    {
+      left: barLeft,
+      top: top ? y + 1 - HOOK_HEIGHT : y - 1,
+      width: right - CORNER - barLeft,
+      height: HOOK_HEIGHT,
+      borderLeftWidth: BAR_WIDTH,
+      [top ? 'borderBottomWidth' : 'borderTopWidth']: BAR_WIDTH,
+      [top ? 'borderBottomLeftRadius' : 'borderTopLeftRadius']: HOOK_HEIGHT,
+    },
+    {
+      left: right - CORNER,
+      top: top ? y - 2 : y - CORNER,
+      width: CORNER,
+      height: CORNER + 2,
+      borderRightWidth: 1,
+      [top ? 'borderTopWidth' : 'borderBottomWidth']: BAR_WIDTH,
+      [top ? 'borderTopRightRadius' : 'borderBottomRightRadius']: CORNER,
+    },
+  ];
 }
 
 /** Whether a bar in this slot runs through any of a row's first `badges` badges. */
@@ -114,22 +157,34 @@ function ChangeBarsImpl({
     if (to <= from || to < top || from > bottom) continue;
 
     const left = slotLeft(slot);
-    const topReach = hookReach(slot, startBadge);
-    const bottomReach = hookReach(slot, endBadge);
-    const straightFrom = topReach > 0 ? from + HOOK_HEIGHT : from;
-    const straightTo = bottomReach > 0 ? to - HOOK_HEIGHT : to;
     const colour = { '--note-lane': laneColour(labelOf(change)) } as CSSProperties;
     const key = `${change}:${firstRow}`;
+    const strokes: CSSProperties[] = [];
 
-    if (topReach > 0) {
+    // Where a hook takes over, the straight run stops a pixel inside it, so
+    // the two never show a seam.
+    let straightFrom = from;
+    let straightTo = to;
+
+    if (needsHook(slot, startBadge)) {
+      strokes.push(...hookStrokes(left, startBadge, 'bottom', from));
+      straightFrom = from - 1 + HOOK_HEIGHT - 1;
+    }
+
+    if (needsHook(slot, endBadge)) {
+      strokes.push(...hookStrokes(left, endBadge, 'top', to));
+      straightTo = to + 1 - HOOK_HEIGHT + 1;
+    }
+
+    strokes.forEach((style, index) => {
       bars.push(
         <div
-          key={`${key}:top`}
-          className={`${styles.changeBarHook} ${styles.changeBarHookTop}`}
-          style={{ ...colour, left, top: from, width: topReach, height: HOOK_HEIGHT }}
+          key={`${key}:hook${index}`}
+          className={styles.changeBarHook}
+          style={{ ...colour, ...style }}
         />,
       );
-    }
+    });
 
     // The straight run, broken wherever another change's badge sits in its
     // way, so the bar reads as passing behind the letter rather than over it.
@@ -150,22 +205,6 @@ function ChangeBarsImpl({
           key={`${key}:${pieceTop}`}
           className={styles.changeBar}
           style={{ ...colour, left, top: pieceTop, height: pieceBottom - pieceTop }}
-        />,
-      );
-    }
-
-    if (bottomReach > 0) {
-      bars.push(
-        <div
-          key={`${key}:bottom`}
-          className={`${styles.changeBarHook} ${styles.changeBarHookBottom}`}
-          style={{
-            ...colour,
-            left,
-            top: to - HOOK_HEIGHT,
-            width: bottomReach,
-            height: HOOK_HEIGHT,
-          }}
         />,
       );
     }
