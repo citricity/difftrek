@@ -67,6 +67,35 @@ export function buildNoteMarkers(
   return markers;
 }
 
+/** Past this, a row's badges become a `+n` rather than squeezing the column. */
+export const MAX_BADGES = 2;
+
+/** One badge in a row of the gutter: filled where its change starts. */
+export interface RowBadge {
+  change: string;
+  starting: boolean;
+}
+
+/**
+ * The badges one row shows, left to right: the changes starting here, then
+ * those ending. A run of one hunk starts and ends on the same row, and one
+ * filled badge says so.
+ *
+ * Shared by the badges and the bars beneath them, because a bar has to know
+ * which badge it hangs from.
+ */
+export function orderBadges(
+  starts: readonly string[],
+  ends: readonly string[],
+): RowBadge[] {
+  return [
+    ...starts.map((change) => ({ change, starting: true })),
+    ...ends
+      .filter((change) => !starts.includes(change))
+      .map((change) => ({ change, starting: false })),
+  ];
+}
+
 /**
  * The hunks one logical change covers, in document order.
  *

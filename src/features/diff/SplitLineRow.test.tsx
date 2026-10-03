@@ -44,6 +44,13 @@ describe('the split row', () => {
     expect(screen.getAllByTestId('marker')).toHaveLength(1);
   });
 
+  // The change bars run down the left edge; a marker in the right pane was
+  // half a window away from its bar (PR #21 review).
+  it('keeps them at the left edge, out of the new side', () => {
+    row(null, pane('add', 7));
+    expect(screen.getByTestId('marker').closest('[data-side="right"]')).toBeNull();
+  });
+
   it('does not draw them twice when both sides are present', () => {
     row(pane('context', 7), pane('context', 7));
     expect(screen.getAllByTestId('marker')).toHaveLength(1);

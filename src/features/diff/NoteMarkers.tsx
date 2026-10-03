@@ -14,11 +14,8 @@ import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import { MessageSquareDashed, MessageSquareText } from 'lucide-react';
 import type { HunkNoteState } from '../../hooks/useAiChangelog.ts';
-import { laneColour } from '../../lib/noteMarkers.ts';
+import { laneColour, MAX_BADGES, orderBadges } from '../../lib/noteMarkers.ts';
 import styles from './DiffRows.module.css';
-
-/** Past this, the rest become a `+n` rather than squeezing the column. */
-const MAX_BADGES = 2;
 
 interface BadgesProps {
   /** Logical changes whose run of hunks begins at this row. */
@@ -33,9 +30,9 @@ interface BadgesProps {
 /**
  * Logical change markers for one row.
  *
- * A change is **filled where its run starts and hollow where it ends**. There
- * is no line joining the two: the markers are enough, and a rule down the
- * gutter would compete with the code for attention.
+ * A change is **filled where its run starts and hollow where it ends**, and a
+ * bar in its colour joins the two (see `ChangeBars`), so the reader can see how
+ * far an intent reaches without counting rows back to its letter.
  *
  * Letters and nothing else. Walking a change — to the far end of the block, or
  * on to the next one — belongs to its dialog, where there is room to say what
@@ -50,13 +47,7 @@ function LogicalBadgesImpl({
   describe,
   onOpen,
 }: BadgesProps) {
-  const badges = [
-    ...starts.map((change) => ({ change, starting: true })),
-    // A run of one starts and ends on the same row; one badge says so.
-    ...ends
-      .filter((change) => !starts.includes(change))
-      .map((change) => ({ change, starting: false })),
-  ];
+  const badges = orderBadges(starts, ends);
 
   const shown = badges.slice(0, MAX_BADGES);
   const rest = badges.length - shown.length;
