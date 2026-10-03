@@ -268,7 +268,7 @@ describe('the contents dialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith('0');
   });
 
-  it('offers, at the top, to single out no change at all', async () => {
+  it('offers, at the top, to pick out no change at all', async () => {
     const hunk = resolved();
     const onClearFocus = vi.fn();
     const { rerender } = render(
@@ -294,7 +294,7 @@ describe('the contents dialog', () => {
         open={{ kind: 'contents' }}
         notes={view(hunk)}
         order={[hunk.hunkId]}
-        focused="0"
+        selected="0"
         onFocus={vi.fn()}
         onClearFocus={onClearFocus}
         onClose={vi.fn()}
@@ -302,6 +302,7 @@ describe('the contents dialog', () => {
       />,
     );
 
+    // Picked out, whether by focus or by a click, is no longer "all".
     expect(all).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(all);
     expect(onClearFocus).toHaveBeenCalledOnce();

@@ -23,7 +23,7 @@ function show(
   files: DocumentFile[],
   onPlaceholdersInView = vi.fn(),
   notes: DocumentNotes | null = null,
-  focusedChange: string | null = null,
+  solidChange: string | null = null,
 ) {
   render(
     <DiffDocument
@@ -43,7 +43,7 @@ function show(
       wrapColumn={null}
       viewMode="unified"
       notes={notes}
-      focusedChange={focusedChange}
+      solidChange={solidChange}
     />,
   );
   return { onPlaceholdersInView };

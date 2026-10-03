@@ -132,10 +132,11 @@ interface Props {
    */
   navigationFilter?: NavigationFilter;
   /**
-   * The logical change in focus, or null. The gutter's other change bars are
-   * dashed while one is, matching what `navigationFilter` does to Previous/Next.
+   * The logical change whose bar stays solid, or null for every bar solid:
+   * the focused change, or failing that the selected one. The gutter's other
+   * change bars are dashed while there is one.
    */
-  focusedChange?: string | null;
+  solidChange?: string | null;
   /**
    * Shown beneath the message when there is nothing to review — where
    * extensions offer something else to do with a repository that has no
@@ -165,7 +166,7 @@ export function DiffDocument({
   onViewportWidthChange,
   notes = null,
   navigationFilter,
-  focusedChange = null,
+  solidChange = null,
   emptyExtras,
 }: Props) {
   /**
@@ -828,7 +829,7 @@ export function DiffDocument({
                 top={model.offsets[range.start] ?? 0}
                 bottom={model.offsets[range.end] ?? model.totalHeight}
                 labelOf={notes.labelOf}
-                focused={focusedChange}
+                solid={solidChange}
               />
             )}
 

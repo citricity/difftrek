@@ -50,9 +50,14 @@ interface Props {
   focused?: string | null;
   onFocus?: (changeId: string) => void;
   /**
-   * Ends the focus, from the top of the contents list or from a focused
-   * change's own crosshair: every bar solid again, and Previous/Next back to
-   * every hunk.
+   * The change picked out in the gutter, selected or focused, if any. The
+   * contents list's "All logical changes" row is chosen when there is none.
+   */
+  selected?: string | null;
+  /**
+   * Back to every change, from the top of the contents list or from a focused
+   * change's own crosshair: no selection and no focus, every bar solid, and
+   * Previous/Next back to every hunk.
    */
   onClearFocus?: () => void;
   /** The change the reader is in, marked in the contents list. */
@@ -82,6 +87,7 @@ export function NoteDialogs({
   onOpenChange,
   focused = null,
   onFocus,
+  selected = null,
   onClearFocus,
   currentChange = null,
   currentHunk = null,
@@ -164,6 +170,7 @@ export function NoteDialogs({
           order={order}
           current={currentChange}
           focused={focused}
+          selected={selected}
           onClose={onClose}
           onGoTo={(changeId) => {
             onOpenChange(changeId);
@@ -499,6 +506,7 @@ function ContentsDialog({
   order,
   current,
   focused,
+  selected,
   onClose,
   onGoTo,
   onFocus,
@@ -508,6 +516,7 @@ function ContentsDialog({
   order: readonly string[];
   current: string | null;
   focused: string | null;
+  selected: string | null;
   onClose: () => void;
   onGoTo: (changeId: string) => void;
   onFocus?: (changeId: string) => void;
@@ -532,7 +541,7 @@ function ContentsDialog({
               <button
                 type="button"
                 className={styles.entryButton}
-                aria-pressed={focused === null}
+                aria-pressed={selected === null}
                 onClick={onClearFocus}
               >
                 <span className={`${styles.entryLabel} ${styles.entryLabelAll}`}>
@@ -541,9 +550,9 @@ function ContentsDialog({
                 <span className={styles.entryText}>
                   All logical changes
                   <span className={styles.entryMeta}>
-                    {focused === null
-                      ? 'No change in focus: every bar solid, every hunk stepped'
-                      : 'Stop focusing one change'}
+                    {selected === null
+                      ? 'None picked out: every bar solid, every hunk stepped'
+                      : 'Show every change again'}
                   </span>
                 </span>
               </button>

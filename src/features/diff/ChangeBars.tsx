@@ -43,12 +43,12 @@ interface Props {
   bottom: number;
   labelOf: (change: string) => string;
   /**
-   * The logical change in focus, or null. While one is, every other bar is
-   * dashed:
-   * the gutter then agrees with Previous/Next, which keep to that change, but
-   * still shows where other intents share its hunks, and nothing moves.
+   * The logical change whose bar stays solid — selected or focused — or null.
+   * While there is one, every other bar is dashed: the gutter then picks out
+   * the change being read, but still shows where other intents share its
+   * hunks, and nothing moves.
    */
-  focused?: string | null;
+  solid?: string | null;
 }
 
 /** A bar's vertical extent, and the gaps it leaves for other badges. */
@@ -116,12 +116,12 @@ function ChangeBarsImpl({
   top,
   bottom,
   labelOf,
-  focused = null,
+  solid = null,
 }: Props) {
   const bars: ReactElement[] = [];
   const colourOf = (change: string) => laneColour(labelOf(change));
   const unfocused = (changes: readonly string[]) =>
-    focused !== null && !changes.includes(focused);
+    solid !== null && !changes.includes(solid);
   const className = (base: string, changes: readonly string[]) =>
     unfocused(changes) ? `${base} ${styles.changeBarUnfocused}` : base;
 
