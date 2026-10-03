@@ -589,6 +589,10 @@ function Session({ onReload }: { onReload: () => void }) {
         setFocused(changeId);
         if (!notesDocked) setNoteDialog(null);
       }}
+      onClearFocus={() => {
+        setFocused(null);
+        if (!notesDocked) setNoteDialog(null);
+      }}
       placement={notePlacement}
       currentHunk={currentHunk}
       onGoToHunk={(hunkId) => {

@@ -3,6 +3,7 @@ import type React from 'react';
 import {
   BAR_WIDTH,
   BADGE_SIZE,
+  DASH_PERIOD,
   badgeLeft,
   crossesBadge,
   hookSide,
@@ -133,6 +134,12 @@ describe('stripes', () => {
   it('gives each colour its turn, repeating', () => {
     expect(stripes(['red', 'blue'])).toBe(
       'repeating-linear-gradient(to bottom, red 0px 4px, blue 4px 8px)',
+    );
+  });
+
+  it('gives each dash a single colour while dashed', () => {
+    expect(stripes(['red', 'blue'], DASH_PERIOD)).toBe(
+      'repeating-linear-gradient(to bottom, red 0px 8px, blue 8px 16px)',
     );
   });
 });

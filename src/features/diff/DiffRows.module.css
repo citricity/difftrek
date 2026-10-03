@@ -770,23 +770,25 @@
   border: 0 solid var(--note-lane);
 }
 
-/* While a logical change is focused, every other change's bar is dotted. A
+/* While a logical change is focused, every other change's bar is dashed. A
    change of texture rather than of strength: a faded bar was too easily read
-   as just another colour (Guy), and dots stay distinct from the overflow's
-   stripes, which have no gaps. Dotted rather than hidden, so the gutter still
+   as just another colour (Guy), and dashes stay distinct from the overflow's
+   stripes, which have no gaps. Dashed rather than hidden, so the gutter still
    shows where other intents share the focused one's hunks, and nothing moves
    when focus comes and goes.
 
-   Cut into round dots by a mask, which keeps whatever background a bar has,
-   the overflow's stripes included. Dotted bars draw no curve onto a badge
-   beside them (see ChangeBars.tsx): a dotted curve broke up into blobs. */
+   Cut into dashes by a mask, which keeps whatever background a bar has, the
+   overflow's stripes included. Dashed bars draw no curve onto a badge beside
+   them (see ChangeBars.tsx): a broken curve breaks up into blobs. The 8px
+   period is `DASH_PERIOD` in changeBarGeometry.ts, which the overflow's
+   stripes take while dashed so each dash is one change's colour. */
 .changeBarUnfocused {
-  -webkit-mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
-  mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 8px);
+  mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 8px);
   -webkit-mask-repeat: repeat-y;
   mask-repeat: repeat-y;
-  -webkit-mask-size: 3px 6px;
-  mask-size: 3px 6px;
+  -webkit-mask-size: 3px 8px;
+  mask-size: 3px 8px;
 }
 
 /* More changes overlap than the column has slots for: the last slot stands for

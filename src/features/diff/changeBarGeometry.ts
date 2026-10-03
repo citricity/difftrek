@@ -193,11 +193,17 @@ export function overflowPieces(
  * The stripes for one overflow piece: each change's colour in turn, 4px at a
  * time — long enough to read as a colour, short enough that a few changes
  * all show within a row or two.
+ *
+ * `stripe` is overridden while the bar is dashed, to the dash's own period:
+ * at 4px a dash straddled two colours, and a two-coloured dash belongs to no
+ * change.
  */
-export function stripes(colours: readonly string[]): string {
-  const stripe = 4;
+export function stripes(colours: readonly string[], stripe = 4): string {
   const stops = colours
     .map((colour, index) => `${colour} ${index * stripe}px ${(index + 1) * stripe}px`)
     .join(', ');
   return `repeating-linear-gradient(to bottom, ${stops})`;
 }
+
+/** The period of a dashed bar's dash and gap; matches `.changeBarUnfocused`. */
+export const DASH_PERIOD = 8;

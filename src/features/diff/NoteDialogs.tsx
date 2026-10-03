@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { CornerDownRight, Crosshair, X } from 'lucide-react';
+import { CornerDownRight, Crosshair, Layers, X } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
 import type { AiChangelogView } from '../../hooks/useAiChangelog.ts';
 import {
@@ -49,6 +49,12 @@ interface Props {
   /** The change Previous/Next is currently narrowed to, if any. */
   focused?: string | null;
   onFocus?: (changeId: string) => void;
+  /**
+   * Ends the focus, from the top of the contents list or from a focused
+   * change's own crosshair: every bar solid again, and Previous/Next back to
+   * every hunk.
+   */
+  onClearFocus?: () => void;
   /** The change the reader is in, marked in the contents list. */
   currentChange?: string | null;
   /** Over the diff as a modal dialog, or beside it in a sidebar. */
@@ -76,6 +82,7 @@ export function NoteDialogs({
   onOpenChange,
   focused = null,
   onFocus,
+  onClearFocus,
   currentChange = null,
   currentHunk = null,
   onGoToHunk,
@@ -162,6 +169,7 @@ export function NoteDialogs({
             onOpenChange(changeId);
           }}
           onFocus={onFocus}
+          onClearFocus={onClearFocus}
         />
       )}
 
@@ -494,6 +502,7 @@ function ContentsDialog({
   onClose,
   onGoTo,
   onFocus,
+  onClearFocus,
 }: {
   notes: AiChangelogView;
   order: readonly string[];
@@ -502,6 +511,7 @@ function ContentsDialog({
   onClose: () => void;
   onGoTo: (changeId: string) => void;
   onFocus?: (changeId: string) => void;
+  onClearFocus?: () => void;
 }) {
   const hunks = notes.changelog?.hunks ?? {};
   const changes = changesInOrder(order, hunks);
@@ -513,6 +523,33 @@ function ContentsDialog({
 
       <div className={styles.body}>
         <ol className={styles.contents}>
+          {/* No change singled out: what the list's focus buttons are a choice
+              against, so it sits above them, chosen whenever none of them is.
+              Here rather than only on the bar under the toolbar, because the
+              list is where a reader goes to choose what to look at. */}
+          {onClearFocus !== undefined && (
+            <li className={`${styles.entry} ${styles.entryAll}`}>
+              <button
+                type="button"
+                className={styles.entryButton}
+                aria-pressed={focused === null}
+                onClick={onClearFocus}
+              >
+                <span className={`${styles.entryLabel} ${styles.entryLabelAll}`}>
+                  <Layers size={11} aria-hidden="true" />
+                </span>
+                <span className={styles.entryText}>
+                  All logical changes
+                  <span className={styles.entryMeta}>
+                    {focused === null
+                      ? 'No change in focus: every bar solid, every hunk stepped'
+                      : 'Stop focusing one change'}
+                  </span>
+                </span>
+              </button>
+            </li>
+          )}
+
           {changes.map(({ id }) => {
             const label = notes.labelOf(id);
             const covered = hunksOfChange(order, hunks, id).length;
@@ -546,9 +583,19 @@ function ContentsDialog({
                       id === focused ? styles.entryFocusOn : ''
                     }`}
                     aria-pressed={id === focused}
-                    title="Step through this change only"
+                    title={
+                      id === focused
+                        ? 'Stop focusing this change'
+                        : 'Step through this change only'
+                    }
                     aria-label={`Focus logical change ${label}`}
-                    onClick={() => onFocus(id)}
+                    // A pressed toggle unpresses: clicking the focused
+                    // change's crosshair again ends the focus.
+                    onClick={() =>
+                      id === focused && onClearFocus !== undefined
+                        ? onClearFocus()
+                        : onFocus(id)
+                    }
                   >
                     <Crosshair size={13} aria-hidden="true" />
                   </button>

@@ -27,6 +27,7 @@ import {
   overflowPieces,
   slotLeft,
   stripes,
+  DASH_PERIOD,
 } from './changeBarGeometry.ts';
 import styles from './DiffRows.module.css';
 
@@ -43,7 +44,7 @@ interface Props {
   labelOf: (change: string) => string;
   /**
    * The logical change in focus, or null. While one is, every other bar is
-   * dotted:
+   * dashed:
    * the gutter then agrees with Previous/Next, which keep to that change, but
    * still shows where other intents share its hunks, and nothing moves.
    */
@@ -150,8 +151,8 @@ function ChangeBarsImpl({
     let straightTo = to;
     const strokes: CSSProperties[] = [];
 
-    // A dotted bar is background: it needs no curve onto its badge, and a
-    // dotted curve breaks up into blobs along the badge's edge.
+    // A dashed bar is background: it needs no curve onto its badge, and a
+    // broken curve breaks up into blobs along the badge's edge.
     const curved = !unfocused([change]);
 
     const startSide =
@@ -197,7 +198,10 @@ function ChangeBarsImpl({
     const left = slotLeft(overflowAt.slot, overflowAt.layout);
 
     for (const piece of overflowPieces(overflow)) {
-      const background = stripes(piece.changes.map(colourOf));
+      const background = stripes(
+        piece.changes.map(colourOf),
+        unfocused(piece.changes) ? DASH_PERIOD : undefined,
+      );
 
       for (const [pieceTop, pieceBottom] of piecesOf(
         piece.from,

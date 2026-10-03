@@ -144,7 +144,7 @@ describe('logical change bars', () => {
     expect(screen.getByTestId('change-bars').children).toHaveLength(4);
   });
 
-  it('dots every other change while one is focused', () => {
+  it('dashes every other change while one is focused', () => {
     show(
       [loadedFile('a.ts', 2)],
       vi.fn(),
@@ -153,22 +153,22 @@ describe('logical change bars', () => {
     );
 
     const strokes = [...screen.getByTestId('change-bars').children] as HTMLElement[];
-    const dotted = (lane: string) =>
+    const dashed = (lane: string) =>
       strokes
         .filter((stroke) => stroke.style.getPropertyValue('--note-lane') === lane)
         .every((stroke) => stroke.className.includes('changeBarUnfocused'));
 
     // x is A (lane 0) and y is B (lane 1).
-    expect(dotted('var(--note-lane-0)')).toBe(true);
+    expect(dashed('var(--note-lane-0)')).toBe(true);
     expect(
       strokes.some((stroke) => stroke.className.includes('changeBarUnfocused')),
     ).toBe(true);
-    expect(dotted('var(--note-lane-1)')).toBe(false);
+    expect(dashed('var(--note-lane-1)')).toBe(false);
   });
 
-  it('draws a dotted bar straight, without a curve onto its badge', () => {
+  it('draws a dashed bar straight, without a curve onto its badge', () => {
     // Unfocused, y would sweep across to its badge (see the hook test above);
-    // dotted, it runs straight down from under it.
+    // dashed, it runs straight down from under it.
     show(
       [loadedFile('a.ts', 2)],
       vi.fn(),
