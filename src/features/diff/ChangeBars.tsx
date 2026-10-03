@@ -42,7 +42,8 @@ interface Props {
   bottom: number;
   labelOf: (change: string) => string;
   /**
-   * The logical change in focus, or null. While one is, every other bar fades:
+   * The logical change in focus, or null. While one is, every other bar is
+   * dotted:
    * the gutter then agrees with Previous/Next, which keep to that change, but
    * still shows where other intents share its hunks, and nothing moves.
    */
@@ -118,10 +119,10 @@ function ChangeBarsImpl({
 }: Props) {
   const bars: ReactElement[] = [];
   const colourOf = (change: string) => laneColour(labelOf(change));
-  const faded = (changes: readonly string[]) =>
+  const unfocused = (changes: readonly string[]) =>
     focused !== null && !changes.includes(focused);
   const className = (base: string, changes: readonly string[]) =>
-    faded(changes) ? `${base} ${styles.changeBarFaded}` : base;
+    unfocused(changes) ? `${base} ${styles.changeBarUnfocused}` : base;
 
   const overflow: { change: string; from: number; to: number }[] = [];
   const overflowGaps: [number, number][] = [];
@@ -149,13 +150,19 @@ function ChangeBarsImpl({
     let straightTo = to;
     const strokes: CSSProperties[] = [];
 
-    const startSide = startBadge === null ? null : hookSide(slot, startBadge, layout);
+    // A dotted bar is background: it needs no curve onto its badge, and a
+    // dotted curve breaks up into blobs along the badge's edge.
+    const curved = !unfocused([change]);
+
+    const startSide =
+      startBadge === null || !curved ? null : hookSide(slot, startBadge, layout);
     if (startBadge !== null && startSide !== null) {
       strokes.push(...hookStrokes(slot, startBadge, startSide, 'bottom', from, layout));
       straightFrom = from - 1 + HOOK_HEIGHT - 1;
     }
 
-    const endSide = endBadge === null ? null : hookSide(slot, endBadge, layout);
+    const endSide =
+      endBadge === null || !curved ? null : hookSide(slot, endBadge, layout);
     if (endBadge !== null && endSide !== null) {
       strokes.push(...hookStrokes(slot, endBadge, endSide, 'top', to, layout));
       straightTo = to + 1 - HOOK_HEIGHT + 1;

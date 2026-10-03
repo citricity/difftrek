@@ -132,8 +132,8 @@ interface Props {
    */
   navigationFilter?: NavigationFilter;
   /**
-   * The logical change in focus, or null. The gutter's other change bars fade
-   * while one is, matching what `navigationFilter` does to Previous/Next.
+   * The logical change in focus, or null. The gutter's other change bars are
+   * dotted while one is, matching what `navigationFilter` does to Previous/Next.
    */
   focusedChange?: string | null;
   /**

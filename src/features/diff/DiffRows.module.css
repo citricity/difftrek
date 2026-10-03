@@ -770,11 +770,23 @@
   border: 0 solid var(--note-lane);
 }
 
-/* While a logical change is focused, every other change's bar fades. Faded
-   rather than hidden: the gutter still shows where other intents share the
-   focused one's hunks, and nothing moves when focus comes and goes. */
-.changeBarFaded {
-  opacity: 0.3;
+/* While a logical change is focused, every other change's bar is dotted. A
+   change of texture rather than of strength: a faded bar was too easily read
+   as just another colour (Guy), and dots stay distinct from the overflow's
+   stripes, which have no gaps. Dotted rather than hidden, so the gutter still
+   shows where other intents share the focused one's hunks, and nothing moves
+   when focus comes and goes.
+
+   Cut into round dots by a mask, which keeps whatever background a bar has,
+   the overflow's stripes included. Dotted bars draw no curve onto a badge
+   beside them (see ChangeBars.tsx): a dotted curve broke up into blobs. */
+.changeBarUnfocused {
+  -webkit-mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
+  mask-image: radial-gradient(circle, #000 1.4px, transparent 1.6px);
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+  -webkit-mask-size: 3px 6px;
+  mask-size: 3px 6px;
 }
 
 /* More changes overlap than the column has slots for: the last slot stands for
