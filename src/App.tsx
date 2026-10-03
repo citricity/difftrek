@@ -370,6 +370,11 @@ function Session({ onReload }: { onReload: () => void }) {
    * standing somewhere else was the confusing half of this (Guy); jumping to
    * the change's first hunk instead would be the other, since it can be in
    * another file, away from the marker just clicked.
+   *
+   * While a change is focused, the focus moves to the one picked, as it does
+   * for the bar's arrows: the focused change outranks everything else the bar
+   * could name, so leaving it behind kept the bar on the old change while the
+   * reader was looking at the new one (#16).
    */
   const openChangeFromGutter = useCallback(
     (changeId: string, hunkId?: string) => {
@@ -377,9 +382,10 @@ function Session({ onReload }: { onReload: () => void }) {
 
       setRequestedChange(changeId);
       setSelected(changeId);
+      if (focused !== null) setFocused(changeId);
       setNoteDialog({ kind: 'change', changeId });
     },
-    [revealHunk],
+    [focused, revealHunk],
   );
 
   const documentNotes = useMemo(() => {
@@ -587,6 +593,10 @@ function Session({ onReload }: { onReload: () => void }) {
       order={notedOrder}
       onClose={() => setNoteDialog(null)}
       onOpenChange={(changeId: string, hunkId?: string) => {
+        // Wherever it was asked from, a focus moves with the pick, as it
+        // does from the gutter (#16).
+        if (focused !== null) setFocused(changeId);
+
         // Asked from a hunk the reader is already on, the answer is the
         // change itself, read in place. Yanking them to the change's first
         // hunk would throw away the one piece of context they had.

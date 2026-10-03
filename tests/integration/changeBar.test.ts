@@ -186,6 +186,32 @@ describe('picking a change from the gutter', () => {
     expect(await globalPosition()).toBe('2 / 6');
     expect((await counters()).hunk).toBe('Hunk 1 / 3');
   });
+
+  it('moves a focus to the change whose letter was picked', async () => {
+    // Close the note the pick above opened, then narrow to change B.
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Focus this change' }).click();
+    await page.getByRole('button', { name: 'Stop focusing this change' }).waitFor();
+    expect((await counters()).change).toBe('Change 2 / 2');
+
+    // The focused change outranks everything else the bar can name, so unless
+    // the pick moves the focus, the bar goes on naming B (#16).
+    await page
+      .getByRole('button', { name: /^Logical change A/ })
+      .first()
+      .click();
+
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('span')].some((span) =>
+        /^Change 1 \/ 2$/.test(span.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+      ),
+    );
+
+    // Still focused — on the change picked, not the one it started on.
+    expect(
+      await page.getByRole('button', { name: 'Stop focusing this change' }).count(),
+    ).toBe(1);
+  });
 });
 
 describe('the page itself', () => {
