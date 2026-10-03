@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildChangeBars, MAX_BAR_SLOTS } from './changeBars.ts';
+import { buildChangeBars, CENTRED_SLOTS, EDGE_SLOTS } from './changeBars.ts';
 import { buildNoteMarkers, MAX_BADGES } from './noteMarkers.ts';
 import type { DocumentRow } from './rows.ts';
 import type { ResolvedHunk } from '../types/index.ts';
@@ -59,7 +59,9 @@ describe('buildChangeBars', () => {
     expect(bars).toEqual([
       {
         change: 'x',
+        layout: 'centred',
         slot: 0,
+        overflow: false,
         firstRow: 1,
         lastRow: 7,
         startBadge: 0,
@@ -122,14 +124,63 @@ describe('buildChangeBars', () => {
     expect(bars.map((bar) => bar.startBadge)).toEqual([0, 1, null]);
   });
 
-  it('leaves out bars past the last slot rather than squeezing them', () => {
-    const changes = Array.from(
-      { length: MAX_BAR_SLOTS + 2 },
-      (_, index) => `c${index}`,
-    );
+  it('keeps a cluster of up to six centred', () => {
+    const changes = Array.from({ length: CENTRED_SLOTS }, (_, index) => `c${index}`);
     const { bars } = document([{ id: 'a', lines: 3, changes }]);
 
-    expect(bars).toHaveLength(MAX_BAR_SLOTS);
+    expect(bars.map((bar) => bar.layout)).toEqual(Array(CENTRED_SLOTS).fill('centred'));
+    expect(bars.some((bar) => bar.overflow)).toBe(false);
+  });
+
+  it('moves a cluster of seven to the edge layout, with a bar each', () => {
+    const changes = Array.from({ length: EDGE_SLOTS }, (_, index) => `c${index}`);
+    const { bars } = document([{ id: 'a', lines: 3, changes }]);
+
+    expect(new Set(bars.map((bar) => bar.layout))).toEqual(new Set(['edge']));
+    expect(bars.map((bar) => bar.slot)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(bars.some((bar) => bar.overflow)).toBe(false);
+  });
+
+  it('puts every change past the sixth slot into the striped overflow', () => {
+    const changes = Array.from({ length: EDGE_SLOTS + 2 }, (_, index) => `c${index}`);
+    const { bars } = document([{ id: 'a', lines: 3, changes }]);
+
+    // Nothing is dropped: the last slot stands for c6, c7 and c8.
+    expect(bars).toHaveLength(changes.length);
+    expect(bars.filter((bar) => bar.overflow).map((bar) => bar.change)).toEqual([
+      'c6',
+      'c7',
+      'c8',
+    ]);
+    expect(new Set(bars.filter((bar) => bar.overflow).map((bar) => bar.slot))).toEqual(
+      new Set([EDGE_SLOTS - 1]),
+    );
+  });
+
+  it('lays out each cluster on its own, so a crowded hunk moves only its own bars', () => {
+    const crowd = Array.from({ length: EDGE_SLOTS }, (_, index) => `c${index}`);
+    const { bars } = document([
+      { id: 'a', lines: 2, changes: ['x'] },
+      { id: 'b', lines: 2, changes: crowd },
+      { id: 'c', lines: 2, changes: ['y'] },
+    ]);
+
+    expect(bars.find((bar) => bar.change === 'x')?.layout).toBe('centred');
+    expect(bars.find((bar) => bar.change === 'y')?.layout).toBe('centred');
+    expect(bars.find((bar) => bar.change === 'c0')?.layout).toBe('edge');
+  });
+
+  it('keeps one layout along a cluster joined only through a neighbour', () => {
+    // x overlaps the crowd at b, and y overlaps x at c but not the crowd:
+    // all three are one cluster, so x does not shift sideways at c.
+    const crowd = Array.from({ length: EDGE_SLOTS - 1 }, (_, index) => `c${index}`);
+    const { bars } = document([
+      { id: 'a', lines: 2, changes: ['x'] },
+      { id: 'b', lines: 2, changes: ['x', ...crowd] },
+      { id: 'c', lines: 2, changes: ['x', 'y'] },
+    ]);
+
+    expect(new Set(bars.map((bar) => bar.layout))).toEqual(new Set(['edge']));
   });
 
   it("lists the other changes' badges a bar passes, so it can step around them", () => {

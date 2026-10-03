@@ -7,7 +7,9 @@ import {
   crossesBadge,
   hookSide,
   hookStrokes,
+  overflowPieces,
   slotLeft,
+  stripes,
 } from './changeBarGeometry.ts';
 
 describe('hookSide', () => {
@@ -83,5 +85,54 @@ describe('crossesBadge', () => {
     expect(crossesBadge(0, 1)).toBe(true);
     expect(crossesBadge(2, 1)).toBe(false);
     expect(crossesBadge(2, 2)).toBe(true);
+  });
+});
+
+describe('the edge layout', () => {
+  it('puts the first bar down the first badge’s left edge', () => {
+    expect(slotLeft(0, 'edge')).toBe(badgeLeft(0));
+    // Running out of the badge's own outline, it needs no hook.
+    expect(hookSide(0, 0, 'edge')).toBeNull();
+  });
+
+  it('fits a seventh slot in the width the centred layout uses for six', () => {
+    expect(slotLeft(6, 'edge') + BAR_WIDTH).toBeLessThanOrEqual(
+      slotLeft(5, 'centred') + BAR_WIDTH,
+    );
+  });
+});
+
+describe('overflowPieces', () => {
+  it('cuts the bar wherever the set of hidden changes changes', () => {
+    expect(
+      overflowPieces([
+        { change: 'g', from: 0, to: 100 },
+        { change: 'h', from: 40, to: 60 },
+      ]),
+    ).toEqual([
+      { from: 0, to: 40, changes: ['g'] },
+      { from: 40, to: 60, changes: ['g', 'h'] },
+      { from: 60, to: 100, changes: ['g'] },
+    ]);
+  });
+
+  it('leaves a gap where nothing is hidden', () => {
+    expect(
+      overflowPieces([
+        { change: 'g', from: 0, to: 10 },
+        { change: 'h', from: 20, to: 30 },
+      ]),
+    ).toEqual([
+      { from: 0, to: 10, changes: ['g'] },
+      { from: 20, to: 30, changes: ['h'] },
+    ]);
+  });
+});
+
+describe('stripes', () => {
+  it('gives each colour its turn, repeating', () => {
+    expect(stripes(['red', 'blue'])).toBe(
+      'repeating-linear-gradient(to bottom, red 0px 4px, blue 4px 8px)',
+    );
   });
 });

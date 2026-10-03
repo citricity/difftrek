@@ -16,17 +16,37 @@ import type { HunkMarkers } from './noteMarkers.ts';
 import { orderBadges } from './noteMarkers.ts';
 import type { DocumentRow } from './rows.ts';
 
-/** Bars side by side before the notes column runs out of room. */
-export const MAX_BAR_SLOTS = 6;
+/**
+ * How a cluster of overlapping bars sits in the notes column.
+ *
+ * - `centred`: the first bar under the middle of its badge, the rest beside
+ *   it. Holds `CENTRED_SLOTS`, which is every cluster in practice.
+ * - `edge`: the first bar down the badge's left edge, which frees one more
+ *   slot in the same width. Used only by a cluster that needs it.
+ */
+export type BarLayout = 'centred' | 'edge';
+
+/** Bars side by side in the centred layout. */
+export const CENTRED_SLOTS = 6;
+/**
+ * Slots in the edge layout. When a cluster needs more, the last one becomes
+ * the overflow: one bar striped in the colours of every change it stands for.
+ */
+export const EDGE_SLOTS = 7;
 
 export interface ChangeBarSegment {
   /** The logical change this bar belongs to. */
   change: string;
+  /** The layout of the cluster this bar belongs to. */
+  layout: BarLayout;
   /**
    * Which of the side-by-side positions it takes, 0 nearest the edge. Two bars
-   * that share a row never share a slot.
+   * that share a row never share a slot, except overflow bars, which all take
+   * the last slot and are drawn there together as stripes.
    */
   slot: number;
+  /** Past the last slot: drawn as part of the striped overflow bar. */
+  overflow: boolean;
   /** Index of the run's first row, and of its last. */
   firstRow: number;
   lastRow: number;
@@ -41,7 +61,8 @@ export interface ChangeBarSegment {
   /**
    * Other badges the bar passes: the row, and how many badges it shows. The
    * bar is drawn above the rows, so it has to step around these or it would
-   * cover another change's letter.
+   * cover another change's letter. The bar's own end rows are included only
+   * where it has no badge there, so it can start or stop clear of the others.
    */
   crossings: { row: number; badges: number }[];
 }
@@ -71,11 +92,15 @@ function badgeIndex(
  * ones `buildNoteMarkers` found, so the bar and the badges cannot disagree
  * about where a change starts or stops.
  *
- * Slots are handed out greedily, lowest free first, which keeps a lone change
- * against the edge and gives the first of two changes starting together the
- * nearer slot — the same order their badges are drawn in. Past
- * `MAX_BAR_SLOTS`, a bar is left out rather than squeezed: its badges still
- * name it, and a column of hairlines would name nothing.
+ * Bars that overlap, directly or through one another, form a cluster, and a
+ * cluster keeps one layout for its whole length: deciding row by row would
+ * move a bar sideways halfway down the page when a neighbour arrived. Within
+ * a cluster, slots are handed out greedily, lowest free first, which keeps a
+ * lone change against the edge and gives the first of two changes starting
+ * together the nearer slot — the order their badges are drawn in. A cluster
+ * that fits `CENTRED_SLOTS` is centred; one that does not moves to the edge
+ * layout, and past `EDGE_SLOTS` its remaining bars share the last slot as
+ * overflow, so no change disappears without a trace.
  */
 export function buildChangeBars(
   rows: readonly DocumentRow[],
@@ -140,7 +165,7 @@ export function buildChangeBars(
   }
 
   const segments = runs
-    .map(({ change, from, to }) => {
+    .map(({ change, from, to }): ChangeBarSegment => {
       const first = firstRow.get(from) ?? 0;
       const last = lastRow.get(to) ?? 0;
       const fromMarks = markers.get(from);
@@ -165,7 +190,8 @@ export function buildChangeBars(
       );
 
       // The bar's own end rows only count where it has no badge there: with
-      // one, it stops at that badge's edge and never reaches the others.
+      // one, it stops at that badge's edge and never reaches the others; with
+      // none, it has to start or stop clear of whatever badges the row shows.
       const crossings = badgeRowsBetween(
         badgeRowList,
         startBadge === null ? first : first + 1,
@@ -174,7 +200,9 @@ export function buildChangeBars(
 
       return {
         change,
+        layout: 'centred',
         slot: 0,
+        overflow: false,
         firstRow: first,
         lastRow: last,
         startBadge,
@@ -191,18 +219,43 @@ export function buildChangeBars(
         (left.startBadge ?? Infinity) - (right.startBadge ?? Infinity),
     );
 
-  // The last row each slot is busy until.
-  const busyUntil: number[] = [];
   const placed: ChangeBarSegment[] = [];
+  let cluster: ChangeBarSegment[] = [];
+  let clusterEnd = -1;
+
+  const settle = () => {
+    // The last row each slot is busy until.
+    const busyUntil: number[] = [];
+    const slots = cluster.map((segment) => {
+      let slot = busyUntil.findIndex((until) => until < segment.firstRow);
+      if (slot === -1) slot = busyUntil.length;
+      busyUntil[slot] = segment.lastRow;
+      return slot;
+    });
+
+    const peak = busyUntil.length;
+    const layout: BarLayout = peak <= CENTRED_SLOTS ? 'centred' : 'edge';
+    const last = EDGE_SLOTS - 1;
+    const overflowing = peak > EDGE_SLOTS;
+
+    cluster.forEach((segment, index) => {
+      const overflow = overflowing && slots[index] >= last;
+      placed.push({
+        ...segment,
+        layout,
+        slot: overflow ? last : slots[index],
+        overflow,
+      });
+    });
+    cluster = [];
+  };
 
   for (const segment of segments) {
-    let slot = busyUntil.findIndex((until) => until < segment.firstRow);
-    if (slot === -1) slot = busyUntil.length;
-    if (slot >= MAX_BAR_SLOTS) continue;
-
-    busyUntil[slot] = segment.lastRow;
-    placed.push({ ...segment, slot });
+    if (segment.firstRow > clusterEnd) settle();
+    cluster.push(segment);
+    clusterEnd = Math.max(clusterEnd, segment.lastRow);
   }
+  settle();
 
   return placed;
 }

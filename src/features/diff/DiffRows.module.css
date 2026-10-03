@@ -769,3 +769,16 @@
   box-sizing: border-box;
   border: 0 solid var(--note-lane);
 }
+
+/* While a logical change is focused, every other change's bar fades. Faded
+   rather than hidden: the gutter still shows where other intents share the
+   focused one's hunks, and nothing moves when focus comes and goes. */
+.changeBarFaded {
+  opacity: 0.3;
+}
+
+/* More changes overlap than the column has slots for: the last slot stands for
+   the rest, striped in their colours (set inline, see `stripes`). */
+.changeBarOverflow {
+  border-radius: 0;
+}

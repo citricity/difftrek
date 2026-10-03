@@ -132,6 +132,11 @@ interface Props {
    */
   navigationFilter?: NavigationFilter;
   /**
+   * The logical change in focus, or null. The gutter's other change bars fade
+   * while one is, matching what `navigationFilter` does to Previous/Next.
+   */
+  focusedChange?: string | null;
+  /**
    * Shown beneath the message when there is nothing to review — where
    * extensions offer something else to do with a repository that has no
    * changes.
@@ -160,6 +165,7 @@ export function DiffDocument({
   onViewportWidthChange,
   notes = null,
   navigationFilter,
+  focusedChange = null,
   emptyExtras,
 }: Props) {
   /**
@@ -822,6 +828,7 @@ export function DiffDocument({
                 top={model.offsets[range.start] ?? 0}
                 bottom={model.offsets[range.end] ?? model.totalHeight}
                 labelOf={notes.labelOf}
+                focused={focusedChange}
               />
             )}
 

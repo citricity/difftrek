@@ -23,6 +23,7 @@ function show(
   files: DocumentFile[],
   onPlaceholdersInView = vi.fn(),
   notes: DocumentNotes | null = null,
+  focusedChange: string | null = null,
 ) {
   render(
     <DiffDocument
@@ -42,6 +43,7 @@ function show(
       wrapColumn={null}
       viewMode="unified"
       notes={notes}
+      focusedChange={focusedChange}
     />,
   );
   return { onPlaceholdersInView };
@@ -105,7 +107,10 @@ function notesFor(membership: Record<string, string[]>): DocumentNotes {
   return {
     hunks,
     state: () => 'explained',
-    labelOf: (change) => (change === 'x' ? 'A' : 'B'),
+    labelOf: (change) =>
+      change.length === 1
+        ? String.fromCharCode(65 + 'xyzabcdefg'.indexOf(change))
+        : 'Z',
     describe: () => 'A change',
     onOpenHunk: vi.fn(),
     onOpenChange: vi.fn(),
@@ -137,6 +142,61 @@ describe('logical change bars', () => {
     // x: one straight bar. y: a sweep and a corner round its badge, then the
     // bar.
     expect(screen.getByTestId('change-bars').children).toHaveLength(4);
+  });
+
+  it('fades every other change while one is focused', () => {
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': ['x', 'y'], 'a.ts:hunk:1': ['x', 'y'] }),
+      'y',
+    );
+
+    const strokes = [...screen.getByTestId('change-bars').children] as HTMLElement[];
+    const faded = (lane: string) =>
+      strokes
+        .filter((stroke) => stroke.style.getPropertyValue('--note-lane') === lane)
+        .every((stroke) => stroke.className.includes('changeBarFaded'));
+
+    // x is A (lane 0) and y is B (lane 1).
+    expect(faded('var(--note-lane-0)')).toBe(true);
+    expect(strokes.some((stroke) => stroke.className.includes('changeBarFaded'))).toBe(
+      true,
+    );
+    expect(faded('var(--note-lane-1)')).toBe(false);
+  });
+
+  it('stripes the changes that do not fit into the last slot', () => {
+    const crowd = ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f'];
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': crowd, 'a.ts:hunk:1': crowd }),
+    );
+
+    const overflow = [...screen.getByTestId('change-bars').children].filter(
+      (stroke) => (stroke as HTMLElement).dataset.changes !== undefined,
+    ) as HTMLElement[];
+
+    expect(overflow.length).toBeGreaterThan(0);
+    expect(overflow[0].dataset.changes).toBe('d e f');
+    expect(overflow[0].style.background).toContain('repeating-linear-gradient');
+  });
+
+  it('draws no slivers beside badges a bar has no letter among', () => {
+    // Three changes start together: two letters and a "+1". The third bar used
+    // to start at the row's edge and leave a 1–2px dash above the letters.
+    const three = ['x', 'y', 'z'];
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': three, 'a.ts:hunk:1': three }),
+    );
+
+    const heights = [...screen.getByTestId('change-bars').children].map((stroke) =>
+      parseFloat((stroke as HTMLElement).style.height),
+    );
+    expect(Math.min(...heights)).toBeGreaterThan(3);
   });
 
   it('draws nothing without a changelog', () => {

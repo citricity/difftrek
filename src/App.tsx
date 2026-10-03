@@ -701,6 +701,7 @@ function Session({ onReload }: { onReload: () => void }) {
             onViewportWidthChange={reportViewportWidth}
             notes={documentNotes}
             navigationFilter={navigationFilter}
+            focusedChange={focused}
             emptyExtras={
               state.repository?.source === 'git' ? (
                 <LandingPanels mode="git" onReload={onReload} />

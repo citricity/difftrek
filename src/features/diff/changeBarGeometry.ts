@@ -7,6 +7,7 @@
  */
 
 import type { CSSProperties } from 'react';
+import type { BarLayout } from '../../lib/changeBars.ts';
 
 /** `.notes`'s left padding: where the first badge starts. */
 export const NOTES_PADDING = 2;
@@ -16,8 +17,14 @@ export const BADGE_GAP = 2;
 /** A bar's width, and how far apart side-by-side bars sit. */
 export const BAR_WIDTH = 3;
 export const SLOT_PITCH = 5;
-/** The first slot, centred under the first badge. */
-const FIRST_SLOT = NOTES_PADDING + (BADGE_SIZE - BAR_WIDTH) / 2;
+/**
+ * Where the first slot sits: centred under the first badge, or down its left
+ * edge, which makes room for one more slot in the same width.
+ */
+const FIRST_SLOT: Record<BarLayout, number> = {
+  centred: NOTES_PADDING + (BADGE_SIZE - BAR_WIDTH) / 2,
+  edge: NOTES_PADDING,
+};
 /** How tall the curve is where a bar sweeps across to its badge. */
 export const HOOK_HEIGHT = 8;
 /**
@@ -29,13 +36,13 @@ export const HOOK_HEIGHT = 8;
 const CORNER = 5;
 
 /*
- * The last slot ends at FIRST_SLOT + (MAX_BAR_SLOTS - 1) * SLOT_PITCH +
- * BAR_WIDTH = 36px, which is `--change-bars-width` in tokens.css: the expander
- * keeps its buttons past it.
+ * The last slot ends at 36px in both layouts — centred: 8 + 5 × 5 + 3; edge:
+ * 2 + 6 × 5 + 3 = 35 — which is `--change-bars-width` in tokens.css: the
+ * expander keeps its buttons past it.
  */
 
-export function slotLeft(slot: number): number {
-  return FIRST_SLOT + slot * SLOT_PITCH;
+export function slotLeft(slot: number, layout: BarLayout = 'centred'): number {
+  return FIRST_SLOT[layout] + slot * SLOT_PITCH;
 }
 
 export function badgeLeft(index: number): number {
@@ -54,8 +61,12 @@ export function badgeLeft(index: number): number {
  * A wider label (AA) makes a badge a little wider than this assumes, which
  * moves the sweep's end a pixel or two; it still lands on the badge.
  */
-export function hookSide(slot: number, badge: number): 'left' | 'right' | null {
-  const bar = slotLeft(slot);
+export function hookSide(
+  slot: number,
+  badge: number,
+  layout: BarLayout = 'centred',
+): 'left' | 'right' | null {
+  const bar = slotLeft(slot, layout);
   const badgeStart = badgeLeft(badge);
   if (badgeStart >= bar + BAR_WIDTH) return 'right';
   if (badgeStart + BADGE_SIZE <= bar) return 'left';
@@ -77,8 +88,9 @@ export function hookStrokes(
   side: 'left' | 'right',
   edge: 'top' | 'bottom',
   y: number,
+  layout: BarLayout = 'centred',
 ): CSSProperties[] {
-  const bar = slotLeft(slot);
+  const bar = slotLeft(slot, layout);
   const near = badgeLeft(badge);
   const far = near + BADGE_SIZE;
   const top = edge === 'top';
@@ -121,11 +133,71 @@ export function hookStrokes(
 }
 
 /** Whether a bar in this slot runs through any of a row's first `badges` badges. */
-export function crossesBadge(slot: number, badges: number): boolean {
-  const left = slotLeft(slot);
+export function crossesBadge(
+  slot: number,
+  badges: number,
+  layout: BarLayout = 'centred',
+): boolean {
+  const left = slotLeft(slot, layout);
   for (let index = 0; index < badges; index += 1) {
     const start = badgeLeft(index);
     if (left < start + BADGE_SIZE && left + BAR_WIDTH > start) return true;
   }
   return false;
+}
+
+/** One stretch of the overflow bar, and the changes it stands for there. */
+export interface OverflowPiece {
+  from: number;
+  to: number;
+  changes: string[];
+}
+
+/**
+ * The overflow bar, cut wherever the set of changes it stands for changes, so
+ * each piece is striped in exactly the colours of the changes hidden beside
+ * it. `spans` are the hidden bars' own vertical extents, in pixels; where none
+ * is hidden there is no piece.
+ */
+export function overflowPieces(
+  spans: readonly { change: string; from: number; to: number }[],
+): OverflowPiece[] {
+  const cuts = [...new Set(spans.flatMap(({ from, to }) => [from, to]))].sort(
+    (left, right) => left - right,
+  );
+
+  const pieces: OverflowPiece[] = [];
+  for (let index = 0; index + 1 < cuts.length; index += 1) {
+    const from = cuts[index];
+    const to = cuts[index + 1];
+    const changes = spans
+      .filter((span) => span.from <= from && span.to >= to)
+      .map((span) => span.change);
+    if (changes.length === 0) continue;
+
+    const previous = pieces[pieces.length - 1];
+    if (
+      previous !== undefined &&
+      previous.to === from &&
+      previous.changes.join('\0') === changes.join('\0')
+    ) {
+      previous.to = to;
+    } else {
+      pieces.push({ from, to, changes });
+    }
+  }
+  return pieces;
+}
+
+/**
+ * The stripes for one overflow piece: each change's colour in turn, 4px at a
+ * time — long enough to read as a colour, short enough that a few changes
+ * all show within a row or two.
+ */
+export function stripes(colours: readonly string[]): string {
+  const stripe = 4;
+  const stops = colours
+    .map((colour, index) => `${colour} ${index * stripe}px ${(index + 1) * stripe}px`)
+    .join(', ');
+  return `repeating-linear-gradient(to bottom, ${stops})`;
 }
