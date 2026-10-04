@@ -369,6 +369,26 @@
   line-height: 1;
 }
 
+/* The row above the changes that singles none of them out. Set off from the
+   list by a rule, because it is a choice about the list rather than an entry
+   in it. */
+.entryAll {
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.entryAll .entryButton[aria-pressed='true'] {
+  border-color: var(--border-subtle);
+  background: var(--surface);
+}
+
+/* Neutral rather than a lane colour: it is every change, not one of them. */
+.entryLabelAll {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+
 .entryText {
   display: flex;
   flex: 1 1 auto;

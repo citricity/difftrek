@@ -268,6 +268,90 @@ describe('the contents dialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith('0');
   });
 
+  it('offers, at the top, to pick out no change at all', async () => {
+    const hunk = resolved();
+    const onClearFocus = vi.fn();
+    const { rerender } = render(
+      <NoteDialogs
+        open={{ kind: 'contents' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        focused={null}
+        onFocus={vi.fn()}
+        onClearFocus={onClearFocus}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    const all = screen.getByRole('button', { name: /All logical changes/ });
+    // Chosen while nothing is focused, and first in the list.
+    expect(all).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('listitem')[0]).toContainElement(all);
+
+    rerender(
+      <NoteDialogs
+        open={{ kind: 'contents' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        selected="0"
+        onFocus={vi.fn()}
+        onClearFocus={onClearFocus}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    // Picked out, whether by focus or by a click, is no longer "all".
+    expect(all).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(all);
+    expect(onClearFocus).toHaveBeenCalledOnce();
+  });
+
+  it('ends only the focus when the focused change’s crosshair is pressed again', async () => {
+    // The change stays picked out, as it does from the toolbar's crosshair;
+    // "All logical changes" is what clears both (PR #21).
+    const hunk = resolved();
+    const onFocus = vi.fn();
+    const onClearFocus = vi.fn();
+    const onUnfocus = vi.fn();
+    render(
+      <NoteDialogs
+        open={{ kind: 'contents' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        focused="0"
+        onFocus={onFocus}
+        onClearFocus={onClearFocus}
+        onUnfocus={onUnfocus}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Focus logical change A' }),
+    );
+    expect(onUnfocus).toHaveBeenCalledOnce();
+    expect(onClearFocus).not.toHaveBeenCalled();
+    expect(onFocus).not.toHaveBeenCalled();
+  });
+
+  it('leaves the row out where focus is not on offer', () => {
+    const hunk = resolved();
+    render(
+      <NoteDialogs
+        open={{ kind: 'contents' }}
+        notes={view(hunk)}
+        order={[hunk.hunkId]}
+        onClose={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /All logical changes/ })).toBeNull();
+  });
+
   it('says when hunks belong to no change at all', () => {
     const hunk = resolved({ logicalChangeIds: [], reasons: [] });
     render(

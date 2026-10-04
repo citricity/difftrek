@@ -201,6 +201,22 @@ function Session({ onReload }: { onReload: () => void }) {
       ? requestedFocus
       : null;
 
+  /**
+   * The logical change picked out in the gutter, if any: its bar stays solid
+   * and every other change's bar is dashed. Set by choosing a change — its
+   * letter in the gutter, or its row in the contents list — without narrowing
+   * Previous/Next the way focus does; focusing a change selects it too, so the
+   * two never disagree about which bar is solid. "All logical changes" clears
+   * both (Guy).
+   */
+  const [requestedSelection, setSelected] = useState<string | null>(null);
+  const selected =
+    requestedSelection !== null && changelog.logicalChange(requestedSelection) !== null
+      ? requestedSelection
+      : null;
+  /** The change whose bar stays solid: the focused one, else the selected one. */
+  const solidChange = focused ?? selected;
+
   const navigationFilter = useMemo(() => {
     const hunks = changelog.changelog?.hunks;
     if (focused === null || hunks === undefined) return undefined;
@@ -365,6 +381,7 @@ function Session({ onReload }: { onReload: () => void }) {
       if (hunkId !== undefined) revealHunk(hunkId);
 
       setRequestedChange(changeId);
+      setSelected(changeId);
       if (focused !== null) setFocused(changeId);
       setNoteDialog({ kind: 'change', changeId });
     },
@@ -506,8 +523,11 @@ function Session({ onReload }: { onReload: () => void }) {
       revealHunk(target.hunkId);
       setRequestedChange(target.id);
       if (focused !== null) setFocused(target.id);
+      // A selection travels the same way, or the solid bar would stay behind
+      // on the change just left.
+      if (selected !== null) setSelected(target.id);
     },
-    [focused, nextChange, previousChange, revealHunk],
+    [focused, selected, nextChange, previousChange, revealHunk],
   );
 
   const goToNextChange = useCallback(() => goToChange('next'), [goToChange]);
@@ -517,11 +537,15 @@ function Session({ onReload }: { onReload: () => void }) {
   );
 
   const closeDockedNote = useCallback(() => setNoteDialog(null), []);
-  const clearFocus = useCallback(() => setFocused(null), []);
+  /** Back to every change: no focus, no selection, every bar solid. */
+  const clearFocus = useCallback(() => {
+    setFocused(null);
+    setSelected(null);
+  }, []);
   const escape =
     notesDocked && noteDialog !== null
       ? closeDockedNote
-      : focused === null
+      : solidChange === null
         ? undefined
         : clearFocus;
 
@@ -578,6 +602,7 @@ function Session({ onReload }: { onReload: () => void }) {
         // hunk would throw away the one piece of context they had.
         if (hunkId !== undefined) {
           setRequestedChange(changeId);
+          setSelected(changeId);
           setNoteDialog({ kind: 'change', changeId });
           return;
         }
@@ -588,15 +613,26 @@ function Session({ onReload }: { onReload: () => void }) {
         if (entry !== undefined) {
           revealHunk(entry.hunkId);
           setRequestedChange(changeId);
+          setSelected(changeId);
         }
         // Beside the diff the list stays open, to be used again: the whole
         // point of docking it is that the code it jumps to is visible.
         if (!notesDocked) setNoteDialog(null);
       }}
       focused={focused}
+      selected={solidChange}
       currentChange={currentChange}
       onFocus={(changeId) => {
         setFocused(changeId);
+        setSelected(changeId);
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      onClearFocus={() => {
+        clearFocus();
+        if (!notesDocked) setNoteDialog(null);
+      }}
+      onUnfocus={() => {
+        setFocused(null);
         if (!notesDocked) setNoteDialog(null);
       }}
       placement={notePlacement}
@@ -673,9 +709,17 @@ function Session({ onReload }: { onReload: () => void }) {
           onPrevious={goToPreviousChange}
           onNextHunk={nextHunkInChange}
           onPreviousHunk={previousHunkInChange}
-          onToggleFocus={() =>
-            setFocused(focused === null ? currentChange : null)
-          }
+          // Focusing selects the same change, as the list's crosshair does, so
+          // the solid bar never falls back to an older selection when the
+          // focus ends; ending it leaves that change picked out (PR #21).
+          onToggleFocus={() => {
+            if (focused === null) {
+              setFocused(currentChange);
+              setSelected(currentChange);
+            } else {
+              setFocused(null);
+            }
+          }}
         />
       )}
 
@@ -711,6 +755,7 @@ function Session({ onReload }: { onReload: () => void }) {
             onViewportWidthChange={reportViewportWidth}
             notes={documentNotes}
             navigationFilter={navigationFilter}
+            solidChange={solidChange}
             emptyExtras={
               state.repository?.source === 'git' ? (
                 <LandingPanels mode="git" onReload={onReload} />

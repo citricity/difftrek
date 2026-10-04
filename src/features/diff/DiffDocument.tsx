@@ -59,7 +59,9 @@ import type { FileListAnchor } from './FileHeaderRow.tsx';
 import { FileNavigator } from '../files/FileNavigator.tsx';
 import { HunkHeaderRow } from './HunkHeaderRow.tsx';
 import { HunkNoteIcon, LogicalBadges } from './NoteMarkers.tsx';
-import { buildNoteMarkers } from '../../lib/noteMarkers.ts';
+import { buildNoteMarkers, MAX_BADGES } from '../../lib/noteMarkers.ts';
+import { buildChangeBars } from '../../lib/changeBars.ts';
+import { ChangeBars } from './ChangeBars.tsx';
 import type { HunkMarkers } from '../../lib/noteMarkers.ts';
 import type { DocumentNotes } from '../../hooks/useAiChangelog.ts';
 import { ImageRow } from './ImageRow.tsx';
@@ -130,6 +132,12 @@ interface Props {
    */
   navigationFilter?: NavigationFilter;
   /**
+   * The logical change whose bar stays solid, or null for every bar solid:
+   * the focused change, or failing that the selected one. The gutter's other
+   * change bars are dashed while there is one.
+   */
+  solidChange?: string | null;
+  /**
    * Shown beneath the message when there is nothing to review — where
    * extensions offer something else to do with a repository that has no
    * changes.
@@ -158,6 +166,7 @@ export function DiffDocument({
   onViewportWidthChange,
   notes = null,
   navigationFilter,
+  solidChange = null,
   emptyExtras,
 }: Props) {
   /**
@@ -245,6 +254,12 @@ export function DiffDocument({
 
     return buildNoteMarkers(order, notes.hunks);
   }, [model, notes]);
+
+  /** The bars joining each change's badges, for the whole document. */
+  const changeBars = useMemo(
+    () => (notes ? buildChangeBars(model.rows, noteMarkers, MAX_BADGES) : []),
+    [model, noteMarkers, notes],
+  );
 
   const badgesFor = (hunk: DiffHunk, lineIndex: number): ReactNode => {
     const marks = noteMarkers.get(hunk.id);
@@ -806,6 +821,18 @@ export function DiffDocument({
             className={styles.pinned}
             style={{ width: viewportWidth > 0 ? viewportWidth : '100%' }}
           >
+            {changeBars.length > 0 && notes && (
+              <ChangeBars
+                segments={changeBars}
+                offsets={model.offsets}
+                lineHeight={metrics.lineHeight}
+                top={model.offsets[range.start] ?? 0}
+                bottom={model.offsets[range.end] ?? model.totalHeight}
+                labelOf={notes.labelOf}
+                solid={solidChange}
+              />
+            )}
+
             {pinned}
 
             {!loadingInView && (

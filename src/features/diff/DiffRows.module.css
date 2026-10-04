@@ -174,6 +174,18 @@
   opacity: 0.55;
 }
 
+/* The markers of a row with no old line, laid over the absent pane exactly
+   where its gutter's notes column would be, so they line up with every other
+   badge and with the change bars. One row tall, like a gutter's first line. */
+.absentNotes {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  height: var(--row-height);
+}
+
 .paneContent {
   flex: 1 1 auto;
   padding-right: var(--content-padding);
@@ -223,10 +235,14 @@
 /* ---- File header ---------------------------------------------------- */
 
 .fileHeader {
+  /* Above the change bars, which run on across a file boundary when one
+     change carries on into the next file; translucent in the document (see
+     `.pinned`) so the bar still shows through. */
+  z-index: 2;
   gap: 8px;
   height: var(--file-header-height);
   padding: 0 12px;
-  background: var(--surface);
+  background: var(--file-header-bg, var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
 }
@@ -372,7 +388,10 @@
 .expander {
   gap: 10px;
   height: var(--expander-height);
-  padding: 0 8px;
+  /* Indented past the change bars while a changelog is loaded: a bar crosses
+     an expander that lies inside its change, and it must not run through the
+     buttons. */
+  padding: 0 8px 0 calc(8px + var(--change-bars-width));
   background: var(--surface-sunken);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
@@ -632,10 +651,12 @@
 }
 
 /* A logical change: filled where its run of hunks starts, hollow where it
-   ends. That pairing is the whole grammar — there is no connecting line down
-   the gutter, which would fight the code for attention. The letter is what
-   identifies the change; colour alone would fail a reader who cannot tell
-   these apart. */
+   ends, with a bar in its colour joining the two (`.changeBar`). The letter is
+   what identifies the change; colour alone would fail a reader who cannot
+   tell these apart.
+
+   Its size and the lane's gap are mirrored as constants in ChangeBars.tsx,
+   which places the bars under these badges by arithmetic. */
 .badge {
   display: flex;
   flex: 0 0 auto;
@@ -712,4 +733,66 @@
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+}
+
+/* ---- Logical change bars ------------------------------------------- */
+
+/* The layer the bars are drawn in, inside the pinned layer so they hold still
+   while long lines scroll sideways, as the gutter does. Above the rows, so a
+   bar crosses expanders and `@@` rows without a gap; under the file headers;
+   and never in the way of a click. Positions and sizes are set inline from
+   the row model (see ChangeBars.tsx). */
+.changeBars {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Solid rather than tinted: it is the badge carried down the page, and a
+   faded version of a colour reads as a different colour. Narrow, so two or
+   three side by side still leave the line numbers alone. */
+.changeBar {
+  position: absolute;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--note-lane);
+}
+
+/* Where a bar's slot is not under its badge — the second of two changes
+   meeting on one row — it sweeps across along the badge's edge and wraps its
+   far corner, so bar and outline read as one line. Which borders each stroke
+   draws, and their radii, are set inline (see `hookStrokes`). */
+.changeBarHook {
+  position: absolute;
+  box-sizing: border-box;
+  border: 0 solid var(--note-lane);
+}
+
+/* While a logical change is focused, every other change's bar is dashed. A
+   change of texture rather than of strength: a faded bar was too easily read
+   as just another colour (Guy), and dashes stay distinct from the overflow's
+   stripes, which have no gaps. Dashed rather than hidden, so the gutter still
+   shows where other intents share the focused one's hunks, and nothing moves
+   when focus comes and goes.
+
+   Cut into dashes by a mask, which keeps whatever background a bar has, the
+   overflow's stripes included. Dashed bars draw no curve onto a badge beside
+   them (see ChangeBars.tsx): a broken curve breaks up into blobs. The 8px
+   period is `DASH_PERIOD` in changeBarGeometry.ts, which the overflow's
+   stripes take while dashed so each dash is one change's colour. */
+.changeBarUnfocused {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 8px);
+  mask-image: linear-gradient(to bottom, #000 0 5px, transparent 5px 8px);
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+  -webkit-mask-size: 3px 8px;
+  mask-size: 3px 8px;
+}
+
+/* More changes overlap than the column has slots for: the last slot stands for
+   the rest, striped in their colours (set inline, see `stripes`). */
+.changeBarOverflow {
+  border-radius: 0;
 }
