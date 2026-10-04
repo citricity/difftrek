@@ -55,11 +55,15 @@ interface Props {
    */
   selected?: string | null;
   /**
-   * Back to every change, from the top of the contents list or from a focused
-   * change's own crosshair: no selection and no focus, every bar solid, and
-   * Previous/Next back to every hunk.
+   * Back to every change, from the top of the contents list: no selection and
+   * no focus, every bar solid, and Previous/Next back to every hunk.
    */
   onClearFocus?: () => void;
+  /**
+   * Ends the focus from a focused change's own crosshair, leaving that change
+   * picked out — the same as the toolbar's crosshair, so the two agree.
+   */
+  onUnfocus?: () => void;
   /** The change the reader is in, marked in the contents list. */
   currentChange?: string | null;
   /** Over the diff as a modal dialog, or beside it in a sidebar. */
@@ -89,6 +93,7 @@ export function NoteDialogs({
   onFocus,
   selected = null,
   onClearFocus,
+  onUnfocus,
   currentChange = null,
   currentHunk = null,
   onGoToHunk,
@@ -177,6 +182,7 @@ export function NoteDialogs({
           }}
           onFocus={onFocus}
           onClearFocus={onClearFocus}
+          onUnfocus={onUnfocus}
         />
       )}
 
@@ -511,6 +517,7 @@ function ContentsDialog({
   onGoTo,
   onFocus,
   onClearFocus,
+  onUnfocus,
 }: {
   notes: AiChangelogView;
   order: readonly string[];
@@ -521,6 +528,7 @@ function ContentsDialog({
   onGoTo: (changeId: string) => void;
   onFocus?: (changeId: string) => void;
   onClearFocus?: () => void;
+  onUnfocus?: () => void;
 }) {
   const hunks = notes.changelog?.hunks ?? {};
   const changes = changesInOrder(order, hunks);
@@ -601,8 +609,8 @@ function ContentsDialog({
                     // A pressed toggle unpresses: clicking the focused
                     // change's crosshair again ends the focus.
                     onClick={() =>
-                      id === focused && onClearFocus !== undefined
-                        ? onClearFocus()
+                      id === focused && onUnfocus !== undefined
+                        ? onUnfocus()
                         : onFocus(id)
                     }
                   >

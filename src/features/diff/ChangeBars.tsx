@@ -198,27 +198,72 @@ function ChangeBarsImpl({
     const left = slotLeft(overflowAt.slot, overflowAt.layout);
 
     for (const piece of overflowPieces(overflow)) {
-      const background = stripes(
-        piece.changes.map(colourOf),
-        unfocused(piece.changes) ? DASH_PERIOD : undefined,
-      );
+      // Each stripe follows its own change: dashed unless its change is the
+      // solid one. A piece holding the solid change and others is drawn as
+      // two layers, the solid change's stripes over the others' dashes with
+      // the rest transparent, at the dash's period so every dash is one
+      // change. Treating the piece as a whole left the others solid too
+      // (PR #21).
+      const mixed =
+        solid !== null && piece.changes.includes(solid) && piece.changes.length > 1;
+      const layers = mixed
+        ? [
+            {
+              part: 'solid',
+              background: stripes(
+                piece.changes.map((change) =>
+                  change === solid ? colourOf(change) : 'transparent',
+                ),
+                DASH_PERIOD,
+              ),
+              className: `${styles.changeBar} ${styles.changeBarOverflow}`,
+            },
+            {
+              part: 'dashed',
+              background: stripes(
+                piece.changes.map((change) =>
+                  change === solid ? 'transparent' : colourOf(change),
+                ),
+                DASH_PERIOD,
+              ),
+              className: `${styles.changeBar} ${styles.changeBarOverflow} ${styles.changeBarUnfocused}`,
+            },
+          ]
+        : [
+            {
+              part: 'whole',
+              background: stripes(
+                piece.changes.map(colourOf),
+                unfocused(piece.changes) ? DASH_PERIOD : undefined,
+              ),
+              className: className(
+                `${styles.changeBar} ${styles.changeBarOverflow}`,
+                piece.changes,
+              ),
+            },
+          ];
 
       for (const [pieceTop, pieceBottom] of piecesOf(
         piece.from,
         piece.to,
         overflowGaps,
       )) {
-        bars.push(
-          <div
-            key={`overflow:${pieceTop}`}
-            className={className(
-              `${styles.changeBar} ${styles.changeBarOverflow}`,
-              piece.changes,
-            )}
-            style={{ left, top: pieceTop, height: pieceBottom - pieceTop, background }}
-            data-changes={piece.changes.join(' ')}
-          />,
-        );
+        for (const layer of layers) {
+          bars.push(
+            <div
+              key={`overflow:${pieceTop}:${layer.part}`}
+              className={layer.className}
+              style={{
+                left,
+                top: pieceTop,
+                height: pieceBottom - pieceTop,
+                background: layer.background,
+              }}
+              data-changes={piece.changes.join(' ')}
+              data-part={layer.part}
+            />,
+          );
+        }
       }
     }
   }

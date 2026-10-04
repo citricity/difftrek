@@ -199,6 +199,30 @@ describe('logical change bars', () => {
     expect(overflow[0].style.background).toContain('repeating-linear-gradient');
   });
 
+  it('keeps the solid change solid inside the striped overflow, and dashes the rest', () => {
+    // PR #21: with the picked-out change among the striped ones, the whole
+    // overflow used to be drawn solid.
+    const crowd = ['x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f'];
+    show(
+      [loadedFile('a.ts', 2)],
+      vi.fn(),
+      notesFor({ 'a.ts:hunk:0': crowd, 'a.ts:hunk:1': crowd }),
+      'e',
+    );
+
+    const overflow = [...screen.getByTestId('change-bars').children].filter(
+      (stroke) => (stroke as HTMLElement).dataset.changes !== undefined,
+    ) as HTMLElement[];
+    const solidPart = overflow.find((stroke) => stroke.dataset.part === 'solid');
+    const dashedPart = overflow.find((stroke) => stroke.dataset.part === 'dashed');
+
+    expect(solidPart?.className).not.toContain('changeBarUnfocused');
+    expect(dashedPart?.className).toContain('changeBarUnfocused');
+    // Each layer leaves the other's stripes transparent.
+    expect(solidPart?.style.background).toContain('transparent');
+    expect(dashedPart?.style.background).toContain('transparent');
+  });
+
   it('draws no slivers beside badges a bar has no letter among', () => {
     // Three changes start together: two letters and a "+1". The third bar used
     // to start at the row's edge and leave a 1–2px dash above the letters.

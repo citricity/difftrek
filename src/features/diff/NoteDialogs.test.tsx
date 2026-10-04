@@ -308,10 +308,13 @@ describe('the contents dialog', () => {
     expect(onClearFocus).toHaveBeenCalledOnce();
   });
 
-  it('ends the focus when the focused change’s crosshair is pressed again', async () => {
+  it('ends only the focus when the focused change’s crosshair is pressed again', async () => {
+    // The change stays picked out, as it does from the toolbar's crosshair;
+    // "All logical changes" is what clears both (PR #21).
     const hunk = resolved();
     const onFocus = vi.fn();
     const onClearFocus = vi.fn();
+    const onUnfocus = vi.fn();
     render(
       <NoteDialogs
         open={{ kind: 'contents' }}
@@ -320,6 +323,7 @@ describe('the contents dialog', () => {
         focused="0"
         onFocus={onFocus}
         onClearFocus={onClearFocus}
+        onUnfocus={onUnfocus}
         onClose={vi.fn()}
         onOpenChange={vi.fn()}
       />,
@@ -328,7 +332,8 @@ describe('the contents dialog', () => {
     await userEvent.click(
       screen.getByRole('button', { name: 'Focus logical change A' }),
     );
-    expect(onClearFocus).toHaveBeenCalledOnce();
+    expect(onUnfocus).toHaveBeenCalledOnce();
+    expect(onClearFocus).not.toHaveBeenCalled();
     expect(onFocus).not.toHaveBeenCalled();
   });
 

@@ -121,6 +121,34 @@ describe('picking out a change', () => {
     expect(await bars()).toEqual({ A: 'solid', B: 'solid' });
   });
 
+  it('keeps the change focused from the toolbar picked out once the focus ends', async () => {
+    // PR #21: select B, move onto A without choosing it, then focus and
+    // unfocus A from the toolbar. The solid bar used to fall back to B.
+    await openList();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /Retire the hand-measured scrolling/ })
+      .click();
+    expect(await bars()).toEqual({ A: 'dashed', B: 'solid' });
+
+    // A's first hunk belongs to A alone; selecting its header moves the
+    // cursor there without choosing a change.
+    await page.getByText('@@ -18,5 +18,5 @@').click();
+    await page.getByRole('button', { name: 'Focus this change' }).click();
+    expect(await bars()).toEqual({ A: 'solid', B: 'dashed' });
+
+    await page.getByRole('button', { name: 'Stop focusing this change' }).click();
+    expect(await bars()).toEqual({ A: 'solid', B: 'dashed' });
+
+    // "All logical changes" still clears everything.
+    await openList();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /All logical changes/ })
+      .click();
+    expect(await bars()).toEqual({ A: 'solid', B: 'solid' });
+  });
+
   it('raised no page errors', () => {
     expect(app.pageErrors).toEqual([]);
   });

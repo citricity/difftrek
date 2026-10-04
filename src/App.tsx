@@ -631,6 +631,10 @@ function Session({ onReload }: { onReload: () => void }) {
         clearFocus();
         if (!notesDocked) setNoteDialog(null);
       }}
+      onUnfocus={() => {
+        setFocused(null);
+        if (!notesDocked) setNoteDialog(null);
+      }}
       placement={notePlacement}
       currentHunk={currentHunk}
       onGoToHunk={(hunkId) => {
@@ -705,9 +709,17 @@ function Session({ onReload }: { onReload: () => void }) {
           onPrevious={goToPreviousChange}
           onNextHunk={nextHunkInChange}
           onPreviousHunk={previousHunkInChange}
-          onToggleFocus={() =>
-            setFocused(focused === null ? currentChange : null)
-          }
+          // Focusing selects the same change, as the list's crosshair does, so
+          // the solid bar never falls back to an older selection when the
+          // focus ends; ending it leaves that change picked out (PR #21).
+          onToggleFocus={() => {
+            if (focused === null) {
+              setFocused(currentChange);
+              setSelected(currentChange);
+            } else {
+              setFocused(null);
+            }
+          }}
         />
       )}
 
