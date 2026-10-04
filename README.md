@@ -78,7 +78,8 @@ the window behind the terminal; install it again to pick up both.
 
 However many times you run it, there is one Diff Trek, with a window per
 review, so macOS shows one Dock icon and its right-click menu (like the Window
-menu) lists the windows by repository and branch or range. Running `git dt`
+menu) lists the windows by repository, with the folder it is in, and by branch
+or range. Running `git dt`
 again for a repository and range that already has a window brings that window
 to the front and reloads it; anything else opens a new one. On macOS,
 **File > New Window** (⌘N) opens an empty window, for comparing something

@@ -30,6 +30,7 @@ const { useSettings } = await import('./useSettings.ts');
 beforeEach(() => {
   getSettings.mockResolvedValue(DEFAULT_SETTINGS);
   setSettings.mockReset();
+  changedElsewhere = null;
 });
 
 describe('useSettings', () => {
@@ -75,5 +76,33 @@ describe('useSettings', () => {
     expect(result.current.settings.wrap).toBe('auto');
     // Taken as stored: echoing it back would only write the same file again.
     expect(setSettings).not.toHaveBeenCalled();
+  });
+
+  it('does not let a slow first read undo what another window stored meanwhile', async () => {
+    // The file is read before the other window writes, and the answer arrives
+    // after: it is the old settings, and must not win.
+    let answer: (stored: Settings) => void = () => undefined;
+    getSettings.mockImplementation(
+      () => new Promise<Settings>((resolve) => (answer = resolve)),
+    );
+
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    // Listening before reading is what lets this change be heard at all.
+    expect(changedElsewhere).not.toBeNull();
+
+    act(() => changedElsewhere?.({ ...DEFAULT_SETTINGS, language: 'de' }));
+    // Awaited, so the hook has handled the answer before the check.
+    await act(() => Promise.resolve(answer({ ...DEFAULT_SETTINGS, language: 'fr' })));
+
+    expect(result.current.settings.language).toBe('de');
+  });
+
+  it('still takes the first read when nothing newer came first', async () => {
+    getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, language: 'es' });
+
+    const { result } = renderHook(() => useSettings());
+
+    await waitFor(() => expect(result.current.settings.language).toBe('es'));
   });
 });
