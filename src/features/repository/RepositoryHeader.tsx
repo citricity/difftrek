@@ -1,5 +1,6 @@
 import { GitBranch, GitCompare } from 'lucide-react';
-import { pluralise } from '../../lib/format.ts';
+import { useT } from '../../i18n/index.ts';
+import type { MessageKey, Translate } from '../../i18n/index.ts';
 import type { ComparisonInfo, RepositoryInfo } from '../../types/index.ts';
 import styles from './RepositoryHeader.module.css';
 
@@ -9,8 +10,13 @@ interface Props {
 }
 
 /** What a commit or range resolved to, for the chip's tooltip. */
-function describeComparison({ base, target }: ComparisonInfo): string {
-  return base === null ? `${target}, the first commit` : `${base} → ${target}`;
+function describeComparison(
+  t: Translate<MessageKey>,
+  { base, target }: ComparisonInfo,
+): string {
+  return base === null
+    ? t('repository.comparison.firstCommit', { target })
+    : t('repository.comparison.range', { base, target });
 }
 
 /**
@@ -23,6 +29,8 @@ function describeComparison({ base, target }: ComparisonInfo): string {
  * the branch says where the working tree is, which is not what is on screen.
  */
 export function RepositoryHeader({ repository, summary }: Props) {
+  const t = useT();
+
   if (repository === null) {
     return (
       <div className={styles.header}>
@@ -38,7 +46,7 @@ export function RepositoryHeader({ repository, summary }: Props) {
       {repository.comparison !== null ? (
         <span
           className={styles.branch}
-          title={describeComparison(repository.comparison)}
+          title={describeComparison(t, repository.comparison)}
         >
           <GitCompare size={12} aria-hidden="true" />
           <span className={styles.branchName}>{repository.comparison.label}</span>
@@ -48,12 +56,14 @@ export function RepositoryHeader({ repository, summary }: Props) {
           <GitBranch size={12} aria-hidden="true" />
           {repository.detached ? (
             <span className={styles.branchName}>
-              <span className={styles.detached}>detached at </span>
-              {repository.head ?? 'unknown'}
+              <Detached
+                text={t('repository.detachedAt')}
+                head={repository.head ?? t('repository.unknownHead')}
+              />
             </span>
           ) : (
             <span className={styles.branchName}>
-              {repository.branch ?? 'no branch'}
+              {repository.branch ?? t('repository.noBranch')}
             </span>
           )}
         </span>
@@ -61,7 +71,7 @@ export function RepositoryHeader({ repository, summary }: Props) {
 
       {summary.files > 0 && (
         <span className={styles.summary}>
-          <span>{pluralise(summary.files, 'file')}</span>
+          <span>{t('repository.files', { count: summary.files })}</span>
           {summary.additions > 0 && (
             <span className={styles.additions}>+{summary.additions}</span>
           )}
@@ -71,5 +81,22 @@ export function RepositoryHeader({ repository, summary }: Props) {
         </span>
       )}
     </div>
+  );
+}
+
+/**
+ * "detached at abc1234", with the words muted and the commit not.
+ *
+ * The message keeps `{head}` where the language puts it, so the muted part may
+ * come before it, after it, or both.
+ */
+function Detached({ text, head }: { text: string; head: string }) {
+  const [before, after = ''] = text.split('{head}');
+  return (
+    <>
+      {before !== '' && <span className={styles.detached}>{before}</span>}
+      {head}
+      {after !== '' && <span className={styles.detached}>{after}</span>}
+    </>
   );
 }

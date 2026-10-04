@@ -2,6 +2,13 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Settings2, X } from 'lucide-react';
 import { onSettingsRequested } from '../../services/backend.ts';
 import type { SettingsState } from '../../hooks/useSettings.ts';
+import {
+  AUTO_LANGUAGE,
+  SUPPORTED_LOCALES,
+  languageName,
+  resolveLocale,
+  useI18n,
+} from '../../i18n/index.ts';
 import { MAX_WRAP_LENGTH, MIN_WRAP_LENGTH } from '../../types/index.ts';
 import type { Settings, WrapMode } from '../../types/index.ts';
 import styles from './SettingsDialog.module.css';
@@ -30,6 +37,7 @@ export function SettingsDialog({ state }: Props) {
   const lengthId = useId();
   const viewId = useId();
   const notesId = useId();
+  const languageId = useId();
 
   const { settings, error, update } = state;
 
@@ -85,6 +93,23 @@ export function SettingsDialog({ state }: Props) {
    */
   const [draft, setDraft] = useState<string | null>(null);
 
+  const i18n = useI18n();
+  const { t } = i18n;
+
+  /** What Automatic means on this machine, named in the option itself. */
+  const automatic = resolveLocale(AUTO_LANGUAGE, i18n.systemLocales, SUPPORTED_LOCALES);
+
+  /**
+   * A stored language this build does not ship — written by a newer version,
+   * say — is kept rather than overwritten, and shown as itself so the select
+   * is never blank. It is followed as Automatic until a build ships it.
+   */
+  const unknownLanguage =
+    settings.language !== AUTO_LANGUAGE &&
+    !SUPPORTED_LOCALES.includes(settings.language)
+      ? settings.language
+      : null;
+
   /**
    * The column only means something to fixed-column wrapping, so it is
    * disabled otherwise rather than hidden: the value is still shown, because
@@ -115,20 +140,20 @@ export function SettingsDialog({ state }: Props) {
         type="button"
         className={styles.trigger}
         onClick={() => setOpen(true)}
-        aria-label="Settings"
-        title="Settings"
+        aria-label={t('settings.title')}
+        title={t('settings.title')}
       >
         <Settings2 size={15} aria-hidden="true" />
       </button>
 
       <dialog ref={dialog} className={styles.dialog} onClose={handleClose}>
         <header className={styles.header}>
-          <h2 className={styles.title}>Settings</h2>
+          <h2 className={styles.title}>{t('settings.title')}</h2>
           <button
             type="button"
             className={styles.close}
             onClick={handleClose}
-            aria-label="Close settings"
+            aria-label={t('settings.close')}
           >
             <X size={14} aria-hidden="true" />
           </button>
@@ -136,14 +161,38 @@ export function SettingsDialog({ state }: Props) {
 
         <div className={styles.body}>
           <div className={styles.field}>
+            <label htmlFor={languageId} className={styles.label}>
+              {t('settings.language.label')}
+              <span className={styles.hint}>{t('settings.language.hint')}</span>
+            </label>
+            {/* Each language is named in itself, and marked as such, so that
+                someone who cannot read the current one can still find theirs
+                and a screen reader pronounces it properly. */}
+            <select
+              id={languageId}
+              className={styles.select}
+              value={settings.language}
+              onChange={(event) => update({ language: event.target.value })}
+            >
+              <option value={AUTO_LANGUAGE}>
+                {t('settings.language.auto', { language: languageName(automatic) })}
+              </option>
+              {SUPPORTED_LOCALES.map((tag) => (
+                <option key={tag} value={tag} lang={tag}>
+                  {languageName(tag)}
+                </option>
+              ))}
+              {unknownLanguage !== null && (
+                <option value={unknownLanguage}>{unknownLanguage}</option>
+              )}
+            </select>
+          </div>
+
+          <div className={styles.field}>
             <label htmlFor={wrapId} className={styles.label}>
-              Wrap long lines
+              {t('settings.wrap.label')}
               <span className={styles.hint}>
-                {settings.wrap === 'off'
-                  ? 'Long lines scroll horizontally, with the line numbers pinned.'
-                  : settings.wrap === 'auto'
-                    ? 'Lines wrap where they meet the edge of the window, and rewrap as it is resized.'
-                    : 'Lines wrap at the column below, whatever the window size.'}
+                {t(`settings.wrap.hint.${settings.wrap}`)}
               </span>
             </label>
             <select
@@ -155,19 +204,22 @@ export function SettingsDialog({ state }: Props) {
                 update({ wrap: event.target.value as WrapMode });
               }}
             >
-              <option value="off">Off</option>
-              <option value="auto">At window edge</option>
-              <option value="column">At fixed column</option>
+              <option value="off">{t('settings.wrap.option.off')}</option>
+              <option value="auto">{t('settings.wrap.option.auto')}</option>
+              <option value="column">{t('settings.wrap.option.column')}</option>
             </select>
           </div>
 
           <div className={styles.field}>
             <label htmlFor={lengthId} className={styles.label}>
-              Fixed column
+              {t('settings.wrapLength.label')}
               <span className={styles.hint}>
                 {lengthDisabled
-                  ? 'Only used when wrapping at a fixed column. Kept for when you switch back.'
-                  : `Between ${MIN_WRAP_LENGTH} and ${MAX_WRAP_LENGTH}.`}
+                  ? t('settings.wrapLength.hint.disabled')
+                  : t('settings.wrapLength.hint.range', {
+                      min: MIN_WRAP_LENGTH,
+                      max: MAX_WRAP_LENGTH,
+                    })}
               </span>
             </label>
             <input
@@ -188,11 +240,8 @@ export function SettingsDialog({ state }: Props) {
 
           <div className={styles.field}>
             <label htmlFor={viewId} className={styles.label}>
-              Default view mode
-              <span className={styles.hint}>
-                What a new window opens with. The toolbar switches the view you are in
-                without changing this.
-              </span>
+              {t('settings.viewMode.label')}
+              <span className={styles.hint}>{t('settings.viewMode.hint')}</span>
             </label>
             <select
               id={viewId}
@@ -204,20 +253,16 @@ export function SettingsDialog({ state }: Props) {
                 })
               }
             >
-              <option value="unified">Unified</option>
-              <option value="split">Split</option>
+              <option value="unified">{t('settings.viewMode.option.unified')}</option>
+              <option value="split">{t('settings.viewMode.option.split')}</option>
             </select>
           </div>
 
           <div className={styles.field}>
             <label htmlFor={notesId} className={styles.label}>
-              AI changelog notes
+              {t('settings.notes.label')}
               <span className={styles.hint}>
-                {settings.notePlacement === 'sidebar'
-                  ? 'Notes open in a panel on the right. The diff narrows to make room and stays usable.'
-                  : settings.notePlacement === 'topbar'
-                    ? 'Notes open in a bar above the diff, which keeps its full width. Best with the split view.'
-                    : 'Notes open in a dialog over the diff.'}
+                {t(`settings.notes.hint.${settings.notePlacement}`)}
               </span>
             </label>
             <select
@@ -230,9 +275,9 @@ export function SettingsDialog({ state }: Props) {
                 })
               }
             >
-              <option value="overlay">Over the diff</option>
-              <option value="sidebar">In a sidebar</option>
-              <option value="topbar">In a bar above the diff</option>
+              <option value="overlay">{t('settings.notes.option.overlay')}</option>
+              <option value="sidebar">{t('settings.notes.option.sidebar')}</option>
+              <option value="topbar">{t('settings.notes.option.topbar')}</option>
             </select>
           </div>
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged by Tauri into the macOS bundle's own Info.plist.
+
+  Declares the languages Diff Trek ships (locales/*.json), so that what macOS
+  itself draws for the app follows the user's language too: the items AppKit
+  adds to the menus (Start Dictation, Emoji & Symbols, Enter Full Screen), and
+  the buttons of the system's own panels, such as the folder chooser. Without
+  it, macOS treats the app as English-only and draws those in English.
+
+  Keep in step with locales/: a test in src-tauri/src/locale.rs checks.
+  US English is macOS's plain `en`.
+-->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>en-GB</string>
+    <string>de</string>
+    <string>es</string>
+    <string>fr</string>
+  </array>
+</dict>
+</plist>

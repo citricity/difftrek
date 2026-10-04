@@ -11,6 +11,7 @@
  */
 
 import { createContext, useContext } from 'react';
+import type { MessageKey, Translate } from '../../i18n/index.ts';
 import { statusLabel } from '../../lib/format.ts';
 import type {
   FileSide,
@@ -22,12 +23,18 @@ import type {
 
 export interface Wording {
   oneSided: OneSided;
-  sideNames: SideNames;
+  /**
+   * What the source calls its sides, or null for a repository's own Before
+   * and After — which are words in the interface's language, and so are
+   * looked up here rather than frozen into whatever language the source
+   * happened to be described in.
+   */
+  sideNames: SideNames | null;
 }
 
 export const REPOSITORY_WORDING: Wording = {
   oneSided: 'change',
-  sideNames: { original: 'Before', working: 'After' },
+  sideNames: null,
 };
 
 export const WordingContext = createContext<Wording>(REPOSITORY_WORDING);
@@ -43,21 +50,39 @@ export function wordingOf(repository: RepositoryInfo | null): Wording {
 }
 
 /** The name of one side, as an image pane is captioned. */
-export function sideName(wording: Wording, side: FileSide): string {
-  return wording.sideNames[side];
+export function sideName(
+  t: Translate<MessageKey>,
+  wording: Wording,
+  side: FileSide,
+): string {
+  return (
+    wording.sideNames?.[side] ?? t(side === 'original' ? 'side.before' : 'side.after')
+  );
 }
 
 /** What an image pane says when its side has no file. */
-export function absentLabel(wording: Wording, side: FileSide): string {
-  if (wording.oneSided === 'missing') return 'Missing';
-  return side === 'original' ? 'Added' : 'Deleted';
+export function absentLabel(
+  t: Translate<MessageKey>,
+  wording: Wording,
+  side: FileSide,
+): string {
+  if (wording.oneSided === 'missing') return t('side.missing');
+  return t(side === 'original' ? 'status.added' : 'status.deleted');
 }
 
 /** The tooltip on a file's status letter. */
-export function statusTitle(wording: Wording, status: FileStatus): string {
+export function statusTitle(
+  t: Translate<MessageKey>,
+  wording: Wording,
+  status: FileStatus,
+): string {
   if (wording.oneSided === 'missing') {
-    if (status === 'added') return `Missing from ${wording.sideNames.original}`;
-    if (status === 'deleted') return `Missing from ${wording.sideNames.working}`;
+    if (status === 'added') {
+      return t('side.missingFrom', { side: sideName(t, wording, 'original') });
+    }
+    if (status === 'deleted') {
+      return t('side.missingFrom', { side: sideName(t, wording, 'working') });
+    }
   }
-  return statusLabel(status);
+  return statusLabel(t, status);
 }

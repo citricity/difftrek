@@ -81,11 +81,15 @@ export interface RepositoryInfo {
   comparison: ComparisonInfo | null;
   /** What a file on only one side means here; see `OneSided`. */
   oneSided: OneSided;
-  /** What the two sides are called where the document names them. */
-  sideNames: SideNames;
+  /**
+   * What the two sides are called where the document names them, or null for
+   * a repository's Before and After, which the interface words in its own
+   * language.
+   */
+  sideNames: SideNames | null;
 }
 
-/** `Before`/`After` in a repository; a folder comparison calls them A and B. */
+/** A source's own names for its sides: a folder comparison's A and B. */
 export interface SideNames {
   original: string;
   working: string;

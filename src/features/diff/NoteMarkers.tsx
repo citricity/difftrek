@@ -15,6 +15,7 @@ import type { CSSProperties } from 'react';
 import { MessageSquareDashed, MessageSquareText } from 'lucide-react';
 import type { HunkNoteState } from '../../hooks/useAiChangelog.ts';
 import { laneColour, MAX_BADGES, orderBadges } from '../../lib/noteMarkers.ts';
+import { useT } from '../../i18n/index.ts';
 import styles from './DiffRows.module.css';
 
 interface BadgesProps {
@@ -47,6 +48,7 @@ function LogicalBadgesImpl({
   describe,
   onOpen,
 }: BadgesProps) {
+  const t = useT();
   const badges = orderBadges(starts, ends);
 
   const shown = badges.slice(0, MAX_BADGES);
@@ -63,10 +65,12 @@ function LogicalBadgesImpl({
             type="button"
             className={`${styles.badge} ${starting ? styles.starts : styles.ends}`}
             style={{ '--note-lane': laneColour(label) } as CSSProperties}
-            title={`${label} — ${describe(change)}`}
-            aria-label={`Logical change ${label}: ${
-              starting ? 'starts here' : 'ends here'
-            }`}
+            title={t('noteMarkers.badgeTitle', { label, description: describe(change) })}
+            aria-label={
+              starting
+                ? t('noteMarkers.badgeStarts', { label })
+                : t('noteMarkers.badgeEnds', { label })
+            }
             onClick={(event) => {
               event.stopPropagation();
               onOpen(change);
@@ -119,6 +123,7 @@ function HunkNoteIconImpl({
   changeLabel = null,
   onOpen,
 }: HunkNoteProps) {
+  const t = useT();
   if (state === 'changedSince') return null;
 
   const explained = state === 'explained';
@@ -133,10 +138,10 @@ function HunkNoteIconImpl({
       : laneColour(changeLabel);
 
   const label = !explained
-    ? 'No reason was recorded for this hunk'
+    ? t('noteMarkers.noReason')
     : partial
-      ? 'Why this hunk exists — it has changed around the note since'
-      : 'Why this hunk exists';
+      ? t('noteMarkers.whyPartial')
+      : t('noteMarkers.why');
 
   return (
     <button

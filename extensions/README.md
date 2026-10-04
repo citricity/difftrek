@@ -31,3 +31,23 @@ extensions/<id>/
 
 An extension is never load-bearing: a panel that throws is removed, and the
 rest of the app carries on.
+
+## Words
+
+An extension's words go in `extensions/<id>/locales/<tag>.json`, one flat
+JSON object per language the core ships (`en-GB` at least), in the same format
+as the core's `locales/`. They are **layered over the core's catalogues**, not
+kept apart: language by language, the extension's messages are merged on top,
+so one `t` reads both, and an extension can use the core's words, add its own,
+or reword the core's.
+
+- **React:** `useT<Key>()` from `@difftrek/extension`, where `Key` is
+  `keyof typeof import('../locales/en-GB.json')`. The core finds the files by
+  itself at build time.
+- **Rust:** embed the same files in a `difftrek_extension_api::i18n::Catalogs`
+  and call `i18n::add_layer` with it when registering (and before formatting a
+  message, so tests see it too); then `i18n::t`/`i18n::tf` answer from every
+  layer in the active language. `i18n::check_catalogues` checks the files as
+  the core's are checked — call it from a test.
+- Name keys after the extension (`dirCompare.title`) so they cannot collide by
+  accident, and ship only languages the core ships.

@@ -8,6 +8,7 @@
 //! unreadable one, or one holding nonsense all resolve to the defaults, because
 //! a preference is never worth an error screen in front of the diff.
 
+use difftrek_extension_api::i18n;
 use crate::error::{AppError, AppResult, ErrorKind};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::path::{Path, PathBuf};
@@ -160,7 +161,27 @@ fn lenient_zoom<'de, D: Deserializer<'de>>(de: D) -> Result<u32, D::Error> {
         .map_or(DEFAULT_ZOOM, |value| value.round() as u32))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Reads the language setting, keeping anything shaped like a language tag.
+///
+/// Whether this build ships that language is not decided here: a file written
+/// by a newer version may name one this build lacks, and it is kept so that
+/// going back to the newer version finds it still chosen. Until then it is
+/// followed as `auto` (see `i18n::resolve`). Anything else is `auto`, for the
+/// same reason as `lenient_view_mode`.
+fn lenient_language<'de, D: Deserializer<'de>>(de: D) -> Result<String, D::Error> {
+    let raw = serde_json::Value::deserialize(de)?;
+    Ok(match raw.as_str() {
+        Some(value) if i18n::is_preference(value) => value.to_string(),
+        _ => i18n::AUTO.to_string(),
+    })
+}
+
+fn default_language() -> String {
+    i18n::AUTO.to_string()
+}
+
+// Not `Copy`, since the language is a string; clone where a copy is meant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     /// Whether long lines wrap rather than scrolling horizontally, and where.
@@ -193,6 +214,10 @@ pub struct Settings {
     /// dragged it. No field-level `default`, for the reason given on `zoom`.
     #[serde(deserialize_with = "lenient_sidebar_width")]
     pub note_sidebar_width: u32,
+    /// The interface's language: `auto` to follow the operating system, or a
+    /// language tag. Read by the shell too, which builds the menu in it.
+    #[serde(default = "default_language", deserialize_with = "lenient_language")]
+    pub language: String,
 }
 
 impl Default for Settings {
@@ -204,6 +229,7 @@ impl Default for Settings {
             zoom: DEFAULT_ZOOM,
             note_placement: NotePlacement::Overlay,
             note_sidebar_width: DEFAULT_NOTE_SIDEBAR_WIDTH,
+            language: default_language(),
         }
     }
 }
@@ -220,6 +246,11 @@ impl Settings {
             note_sidebar_width: self
                 .note_sidebar_width
                 .clamp(MIN_NOTE_SIDEBAR_WIDTH, MAX_NOTE_SIDEBAR_WIDTH),
+            language: if i18n::is_preference(&self.language) {
+                self.language
+            } else {
+                default_language()
+            },
         }
     }
 }
@@ -258,15 +289,15 @@ pub fn load_from(path: &Path) -> Settings {
 /// Written to a temporary file and renamed, so an interrupted write leaves the
 /// previous settings intact rather than a half-written file that the next load
 /// would discard.
-pub fn save_to(path: &Path, settings: Settings) -> AppResult<()> {
-    let settings = settings.sanitised();
+pub fn save_to(path: &Path, settings: &Settings) -> AppResult<()> {
+    let settings = settings.clone().sanitised();
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| write_error(path, err))?;
     }
 
     let json = serde_json::to_string_pretty(&settings)
-        .map_err(|err| AppError::new(ErrorKind::SettingsFailed, "Could not encode settings.")
+        .map_err(|err| AppError::new(ErrorKind::SettingsFailed, i18n::t("error.settingsEncode"))
             .with_detail(err.to_string()))?;
 
     let temporary = path.with_extension("json.tmp");
@@ -279,7 +310,7 @@ pub fn save_to(path: &Path, settings: Settings) -> AppResult<()> {
 fn write_error(path: &Path, err: std::io::Error) -> AppError {
     AppError::new(
         ErrorKind::SettingsFailed,
-        "Diff Trek could not save your settings.",
+        i18n::t("error.settingsSave"),
     )
     .with_detail(format!("{}: {err}", path.display()))
 }
@@ -307,6 +338,36 @@ mod tests {
     }
 
     #[test]
+    fn the_language_follows_the_system_unless_chosen() {
+        let path = temp_dir("language").join("settings.json");
+        assert_eq!(Settings::default().language, "auto");
+
+        let settings = Settings {
+            language: "de".to_string(),
+            ..Settings::default()
+        };
+        save_to(&path, &settings).unwrap();
+        assert_eq!(load_from(&path), settings);
+
+        // A tag this build may not ship is kept, for the version that does.
+        std::fs::write(&path, r#"{"language": "it"}"#).unwrap();
+        assert_eq!(load_from(&path).language, "it");
+
+        // Anything not shaped like one costs only itself.
+        std::fs::write(&path, r#"{"language": "Klingon please", "zoom": 150}"#).unwrap();
+        let read = load_from(&path);
+        assert_eq!(read.language, "auto");
+        assert_eq!(read.zoom, 150);
+
+        std::fs::write(&path, r#"{"language": 7}"#).unwrap();
+        assert_eq!(load_from(&path).language, "auto");
+
+        // Files from before the setting existed follow the system.
+        std::fs::write(&path, r#"{"wrapLength": 90}"#).unwrap();
+        assert_eq!(load_from(&path).language, "auto");
+    }
+
+    #[test]
     fn the_sidebar_width_round_trips_and_is_clamped() {
         let path = temp_dir("sidebar-width").join("settings.json");
         let settings = Settings {
@@ -314,7 +375,7 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         assert!(std::fs::read_to_string(&path)
             .unwrap()
             .contains("\"noteSidebarWidth\": 480"));
@@ -345,7 +406,7 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         assert_eq!(load_from(&path), settings);
     }
 
@@ -371,7 +432,7 @@ mod tests {
 
         save_to(
             &path,
-            Settings {
+            &Settings {
                 zoom: 5_000,
                 ..Settings::default()
             },
@@ -398,7 +459,7 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         assert!(std::fs::read_to_string(&path).unwrap().contains("\"split\""));
         assert_eq!(load_from(&path), settings);
     }
@@ -428,7 +489,7 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         assert!(std::fs::read_to_string(&path).unwrap().contains("\"auto\""));
         assert_eq!(load_from(&path), settings);
     }
@@ -470,7 +531,7 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         let written = std::fs::read_to_string(&path).unwrap();
         assert!(written.contains("\"notePlacement\": \"sidebar\""));
         assert_eq!(load_from(&path), settings);
@@ -479,7 +540,7 @@ mod tests {
             note_placement: NotePlacement::TopBar,
             ..Settings::default()
         };
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         let written = std::fs::read_to_string(&path).unwrap();
         assert!(written.contains("\"notePlacement\": \"topbar\""));
         assert_eq!(load_from(&path), settings);
@@ -530,7 +591,7 @@ mod tests {
 
         save_to(
             &path,
-            Settings {
+            &Settings {
                 wrap: WrapMode::Column,
                 wrap_length: 100_000,
                 ..Settings::default()
@@ -549,21 +610,21 @@ mod tests {
             ..Settings::default()
         };
 
-        save_to(&path, settings).unwrap();
+        save_to(&path, &settings).unwrap();
         assert_eq!(load_from(&path), settings);
     }
 
     #[test]
     fn saving_creates_the_directory_it_needs() {
         let path = temp_dir("nested").join("deeper").join("settings.json");
-        save_to(&path, Settings::default()).unwrap();
+        save_to(&path, &Settings::default()).unwrap();
         assert!(path.exists());
     }
 
     #[test]
     fn saving_leaves_no_temporary_file_behind() {
         let path = temp_dir("tidy").join("settings.json");
-        save_to(&path, Settings::default()).unwrap();
+        save_to(&path, &Settings::default()).unwrap();
         assert!(!path.with_extension("json.tmp").exists());
     }
 }

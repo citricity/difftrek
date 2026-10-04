@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { pluralise } from '../../lib/format.ts';
+import { useT } from '../../i18n/index.ts';
 import { SESSION_MASCOT } from './mascots.ts';
 import styles from './DiffRows.module.css';
 
@@ -23,12 +23,13 @@ interface Props {
  * launch — see `mascots.ts`.
  */
 export function EndOfDocument({ style, fileCount }: Props) {
+  const t = useT();
   return (
     <div
       className={`${styles.row} ${styles.end}`}
       style={style}
       role="note"
-      aria-label="End of changes"
+      aria-label={t('document.end.label')}
     >
       <div className={styles.endContent}>
         <span
@@ -37,11 +38,9 @@ export function EndOfDocument({ style, fileCount }: Props) {
           aria-hidden="true"
         />
         <div className={styles.endText}>
-          <p className={styles.endTitle}>
-            Congratulations — you&rsquo;ve reached the end.
-          </p>
+          <p className={styles.endTitle}>{t('document.end.title')}</p>
           <p className={styles.endDetail}>
-            That&rsquo;s every change, across {pluralise(fileCount, 'file')}.
+            {t('document.end.detail', { count: fileCount })}
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { DiffNavigation } from '../../hooks/useDiffNavigation.ts';
+import { useT } from '../../i18n/index.ts';
 import styles from './NavigationControls.module.css';
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
  */
 export function NavigationControls({ navigation }: Props) {
   const { position, total, canGoNext, canGoPrevious, navigating } = navigation;
+  const t = useT();
 
   return (
     <div className={styles.controls}>
@@ -31,8 +33,8 @@ export function NavigationControls({ navigation }: Props) {
           className={styles.button}
           onClick={navigation.goPrevious}
           disabled={!canGoPrevious}
-          title="Previous change (p)"
-          aria-label="Previous change"
+          title={t('navigation.previous.title', { key: 'p' })}
+          aria-label={t('navigation.previous')}
         >
           <ChevronUp size={15} aria-hidden="true" />
         </button>
@@ -42,8 +44,8 @@ export function NavigationControls({ navigation }: Props) {
           className={styles.button}
           onClick={navigation.goNext}
           disabled={!canGoNext}
-          title="Next change (n)"
-          aria-label="Next change"
+          title={t('navigation.next.title', { key: 'n' })}
+          aria-label={t('navigation.next')}
         >
           <ChevronDown size={15} aria-hidden="true" />
         </button>

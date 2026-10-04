@@ -6,6 +6,7 @@ pub mod extensions;
 pub mod git;
 pub mod git_alias;
 pub mod launch;
+pub mod locale;
 pub mod menu;
 pub mod settings;
 pub mod state;
@@ -29,15 +30,26 @@ pub fn run() {
     // are namespaced by Tauri rather than by us.
     let builder = extensions::register(tauri::Builder::default());
 
+    // The menu bar is built in the user's language rather than taken from
+    // Tauri's English default, so the language has to be settled before it is
+    // built — which happens inside `run`, ahead of `setup`, and this is the
+    // first moment there is an app to read the settings through.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(|app| {
+        locale::apply(&commands::stored_settings(app).language);
+        menu::build(app)
+    });
+
     builder
         .manage(AppState::default())
         // What is being compared. Empty until the repository is opened, or an
         // extension opens something else.
         .manage(ActiveSource::new(Arc::new(git::host::GitHost)))
-        // Runs after the default menu has been installed, so there is something
-        // to add the Settings item to.
         .setup(|app| {
-            menu::install_app_items(app.handle())?;
+            // Already done on macOS, where the menu needed it first; once more
+            // is harmless, and everywhere else this is where errors from the
+            // shell start speaking the user's language.
+            locale::apply(&commands::stored_settings(app.handle()).language);
             // Before the window is on screen, so a scaled interface never
             // appears at its natural size first.
             commands::apply_stored_zoom(app.handle());
@@ -56,6 +68,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_launch_options,
+            commands::get_system_locales,
             commands::get_repository_info,
             commands::get_changed_files,
             commands::get_file_diff,

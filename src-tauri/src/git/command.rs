@@ -4,6 +4,7 @@
 //! arrive as UTF-8 rather than octal escapes, and with `--no-ext-diff` /
 //! `--no-color` so a user's own diff configuration cannot change what we parse.
 
+use difftrek_extension_api::i18n;
 use crate::error::{AppError, AppResult, ErrorKind};
 use std::path::Path;
 use std::process::Command;
@@ -55,7 +56,7 @@ fn run_accepting(cwd: &Path, args: &[&str], differences_found_is_success: bool) 
         .map_err(|err| {
             AppError::new(
                 ErrorKind::GitUnavailable,
-                "Git could not be started. Check that it is installed and on your PATH.",
+                i18n::t("error.gitUnavailable"),
             )
             .with_detail(err.to_string())
         })?;

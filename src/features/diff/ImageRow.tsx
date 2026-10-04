@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { useT } from '../../i18n/index.ts';
 import { loadImageSide } from '../../services/images.ts';
 import type { ImageSide } from '../../services/images.ts';
 import type { ChangedFile, FileDiff, FileSide } from '../../types/index.ts';
@@ -58,8 +59,9 @@ function ImagePane({
   }, [meta, diff, side]);
 
   const image = loaded?.diff === diff ? loaded.image : null;
+  const t = useT();
   const wording = useWording();
-  const label = sideName(wording, side);
+  const label = sideName(t, wording, side);
 
   return (
     <figure className={styles.imagePane} data-side={side}>
@@ -69,12 +71,12 @@ function ImagePane({
           <img
             className={styles.imagePicture}
             src={image.url}
-            alt={`${meta.path}, ${label}`}
+            alt={t('image.alt', { path: meta.path, side: label })}
             draggable={false}
           />
         ) : (
           <span className={styles.imageMissing}>
-            {image.state === 'absent' ? absentLabel(wording, side) : image.message}
+            {image.state === 'absent' ? absentLabel(t, wording, side) : image.message}
           </span>
         )}
       </div>

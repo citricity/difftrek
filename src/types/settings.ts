@@ -68,6 +68,13 @@ export interface Settings {
    * The window caps it again at half its width.
    */
   noteSidebarWidth: number;
+  /**
+   * The interface's language: `auto` to follow the operating system, or a
+   * language tag such as `en-GB` or `de`. A tag this build does not ship is
+   * kept — a newer version may have written it — and followed as `auto` until
+   * it does.
+   */
+  language: string;
 }
 
 /**
@@ -81,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   zoom: 100,
   notePlacement: 'overlay',
   noteSidebarWidth: 360,
+  language: 'auto',
 };
 
 /** The range the backend will accept; the dialog holds the input to it too. */

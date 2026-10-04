@@ -18,6 +18,7 @@ import {
   useState,
 } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
+import { useT } from '../../i18n/index.ts';
 import { useElementSize } from '../../hooks/useElementSize.ts';
 import {
   SCROLL_MARGIN,
@@ -169,6 +170,8 @@ export function DiffDocument({
   solidChange = null,
   emptyExtras,
 }: Props) {
+  const t = useT();
+
   /**
    * The scrolling element, held twice on purpose.
    *
@@ -767,7 +770,11 @@ export function DiffDocument({
         <div className={styles.empty}>
           {loading ? (
             <span>
-              {comparison === null ? 'Reading the working tree…' : 'Reading the diff…'}
+              {t(
+                comparison === null
+                  ? 'document.readingWorkingTree'
+                  : 'document.readingDiff',
+              )}
             </span>
           ) : (
             <>
@@ -781,13 +788,17 @@ export function DiffDocument({
               />
               {typeof comparison !== 'string' ? (
                 <>
-                  <span className={styles.emptyTitle}>No unstaged changes</span>
-                  <span>Every tracked file matches the index.</span>
+                  <span className={styles.emptyTitle}>
+                    {t('document.noUnstagedChanges')}
+                  </span>
+                  <span>{t('document.indexMatches')}</span>
                 </>
               ) : (
                 <>
-                  <span className={styles.emptyTitle}>No changes in {comparison}</span>
-                  <span>Both sides of the comparison are identical.</span>
+                  <span className={styles.emptyTitle}>
+                    {t('document.noChangesIn', { comparison })}
+                  </span>
+                  <span>{t('document.sidesIdentical')}</span>
                 </>
               )}
               {emptyExtras}
@@ -809,7 +820,7 @@ export function DiffDocument({
         onWheel={handleWheel}
         tabIndex={0}
         role="region"
-        aria-label="Repository diff"
+        aria-label={t('document.region')}
       >
         <div
           className={styles.canvas}

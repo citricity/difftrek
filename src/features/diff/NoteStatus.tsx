@@ -10,6 +10,8 @@
 import { MessageSquareDashed } from 'lucide-react';
 import { changedSince, explained, isComplete } from '../../types/index.ts';
 import type { MatchSummary } from '../../types/index.ts';
+import { useT } from '../../i18n/index.ts';
+import type { MessageKey, Translate } from '../../i18n/index.ts';
 import styles from './NoteStatus.module.css';
 
 interface Props {
@@ -17,18 +19,20 @@ interface Props {
 }
 
 export function NoteStatus({ summary }: Props) {
+  const t = useT();
+
   // `isComplete` mirrors the rule the backend uses to choose between changelog
   // files, where a hunk nobody explained is no reason to reject one. The
   // reader's question here is different — does this account for everything on
   // screen — so an unexplained hunk counts against it.
   if (isComplete(summary) && summary.unexplained === 0) return null;
 
-  const detail = explain(summary);
+  const detail = explain(t, summary);
 
   return (
     <span className={styles.warning} title={detail}>
       <MessageSquareDashed size={13} aria-hidden="true" />
-      {explained(summary)} / {summary.total}
+      {t('noteStatus.ratio', { explained: explained(summary), total: summary.total })}
       {/* The ratio alone is meaningless read aloud, and `title` is a mouse
           affordance — so the whole explanation is in the document too, where a
           screen reader will find it. */}
@@ -44,36 +48,28 @@ export function NoteStatus({ summary }: Props) {
  * written is the normal way this happens, and it is usually the reader's own
  * later edit.
  */
-function explain(summary: MatchSummary): string {
+function explain(t: Translate<MessageKey>, summary: MatchSummary): string {
   const lines = [
-    `The AI changelog explains ${explained(summary)} of ${summary.total} hunks on screen.`,
+    t('noteStatus.explains', { explained: explained(summary), total: summary.total }),
   ];
 
   if (summary.unexplained > 0) {
-    lines.push(
-      `${summary.unexplained} ${summary.unexplained === 1 ? 'hunk is' : 'hunks are'} in it with no reason recorded.`,
-    );
+    lines.push(t('noteStatus.unexplained', { count: summary.unexplained }));
   }
 
   const since = changedSince(summary);
   if (since > 0) {
-    lines.push(
-      `${since} ${since === 1 ? 'hunk has' : 'hunks have'} changed since it was written.`,
-    );
+    lines.push(t('noteStatus.changedSince', { count: since }));
   }
 
   if (summary.partial > 0) {
-    lines.push(
-      `${summary.partial} ${summary.partial === 1 ? 'note covers' : 'notes cover'} only part of what its hunk now does.`,
-    );
+    lines.push(t('noteStatus.partial', { count: summary.partial }));
   }
 
   if (summary.staleNotes > 0) {
-    lines.push(
-      `${summary.staleNotes} ${summary.staleNotes === 1 ? 'note no longer applies' : 'notes no longer apply'} to anything here.`,
-    );
+    lines.push(t('noteStatus.stale', { count: summary.staleNotes }));
   }
 
-  lines.push('Writing a new changelog brings them back into step.');
+  lines.push(t('noteStatus.writeNew'));
   return lines.join('\n');
 }

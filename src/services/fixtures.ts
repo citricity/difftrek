@@ -11,6 +11,8 @@
  * and the file-crossing navigation are all exercised.
  */
 
+import { translate } from '../i18n/context.ts';
+import { normaliseLocale } from '../i18n/resolve.ts';
 import { AppError } from '../types/index.ts';
 import type {
   AiChangelog,
@@ -305,7 +307,7 @@ const REPOSITORY: RepositoryInfo = {
   detached: false,
   comparison: null,
   oneSided: 'change',
-  sideNames: { original: 'Before', working: 'After' },
+  sideNames: null,
 };
 
 /**
@@ -434,7 +436,7 @@ async function resolveFixture(
       if (diff === undefined) {
         throw new AppError({
           kind: 'fileNotFound',
-          message: `${path} is no longer part of the working tree diff.`,
+          message: translate('error.fileNotFound', { path }),
           detail: null,
         });
       }
@@ -490,12 +492,24 @@ async function resolveFixture(
             ),
           ),
         ),
+        // Kept when it is `auto` or shaped like a language tag, as the backend
+        // does; whether this build ships it is the resolver's business.
+        language:
+          typeof requested.language === 'string' &&
+          (requested.language === 'auto' ||
+            normaliseLocale(requested.language) === requested.language)
+            ? requested.language
+            : settings.language,
       };
       return delay(settings);
     }
 
     // Outside Tauri there is no Git configuration to change, so these pretend,
     // and remember the pretence until reload like settings do.
+    // The browser's own list is the nearest thing to the system's here.
+    case 'get_system_locales':
+      return delay([...navigator.languages]);
+
     case 'get_ai_changelog':
       return delay(AI_CHANGELOG);
 
@@ -513,7 +527,7 @@ async function resolveFixture(
       if (url === undefined) {
         throw new AppError({
           kind: 'binaryFile',
-          message: `${path} is not an image Diff Trek can show.`,
+          message: translate('error.notAnImage', { path }),
           detail: null,
         });
       }

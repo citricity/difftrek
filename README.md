@@ -97,18 +97,44 @@ own config directory, written through the backend rather than kept in the
 webview, and a missing or damaged file reads as the defaults rather than as an
 error — a preference is never worth an error screen in front of the diff.
 
-The rest of the macOS menu bar is Tauri's own default, which it installs when
-the builder is given no menu — that is where ⌘C, ⌘W, Hide and About already
-come from. Only the Settings item and the three zoom items in View are ours,
-because those are what `PredefinedMenuItem` cannot supply: the OS knows what
-About and Quit do, but only the app knows what Settings opens or what the next
-zoom level is. Other platforms get no menu from Tauri, so there the gear is the
-way in and the zoom keys stand alone.
+The macOS menu bar has the same shape as Tauri's own default — ⌘C, ⌘W, Hide
+and About behave as the OS defines them — but Diff Trek builds it itself
+(`src-tauri/src/menu.rs`) so that every label is in the interface's language.
+The Settings item and the three zoom items in View are additions, because
+those are what `PredefinedMenuItem` cannot supply: the OS knows what About and
+Quit do, but only the app knows what Settings opens or what the next zoom
+level is. Other platforms get no menu from Tauri, so there the gear is the way
+in and the zoom keys stand alone.
 
 The item follows macOS 13, which renamed Preferences to Settings; the dialog,
 the Rust module and `settings.json` all use the same word.
 
 Deliberately small: `CLAUDE.md` puts complex preference screens out of scope.
+
+## Languages
+
+Diff Trek speaks English (UK and US), German, French and Spanish. **Settings →
+Language** is Automatic by default, which follows the languages the operating
+system lists, in order, and falls back to British English; choosing a language
+there overrides it. The change is immediate, the menu bar included.
+
+The words live in one place, `locales/<tag>.json`, which both halves read: the
+React side imports them through Vite, and the Rust side embeds the same files
+with `include_str!` (`crates/extension-api/src/i18n.rs`), so the menu, error
+messages from the backend and the interface can never disagree. Each file is a
+flat map from a key to a message; `{name}` is a placeholder, and an object of
+`one`/`other` forms is a plural, chosen by the `count` argument with the
+language's own rules. `en-GB` is the base and is complete; any other language
+must be complete too, except a regional variant of the base (`en-US`), which
+holds only what differs. Tests in both languages check every catalogue against
+the base, keys and placeholders alike.
+
+To add a language: add `locales/<tag>.json`, list it in `CORE` in
+`crates/extension-api/src/i18n.rs` and in `src-tauri/Info.plist` (tests catch
+either being missed), and give it a `language.name` in itself.
+
+The output of `git dt --createchangelog` and the changelog format stay in
+English on purpose: they are read by agents and parsed by the app.
 
 ## Keyboard
 

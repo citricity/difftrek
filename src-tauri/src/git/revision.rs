@@ -23,6 +23,7 @@
 //! with another. Parsing is kept apart from resolving so the argument rules are
 //! testable without a repository.
 
+use difftrek_extension_api::i18n;
 use super::command::run;
 use super::model::ComparisonInfo;
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -78,12 +79,10 @@ fn side_or_head(side: &str) -> String {
 /// working tree is shown.
 pub fn parse(revisions: &[String]) -> AppResult<Option<RevisionSpec>> {
     if let Some(flag) = revisions.iter().find(|arg| arg.starts_with('-')) {
-        return Err(invalid(format!(
-            "{flag} is not a revision Diff Trek understands."
-        )));
+        return Err(invalid(i18n::tf("error.revision.flag", &[("flag", flag)])));
     }
     if let Some(empty) = revisions.iter().find(|arg| arg.trim().is_empty()) {
-        return Err(invalid("An empty revision was given.").with_detail(format!("{empty:?}")));
+        return Err(invalid(i18n::t("error.revision.empty")).with_detail(format!("{empty:?}")));
     }
 
     match revisions {
@@ -91,18 +90,20 @@ pub fn parse(revisions: &[String]) -> AppResult<Option<RevisionSpec>> {
         [single] => Ok(Some(parse_single(single))),
         [from, to] => {
             if from.contains("..") || to.contains("..") {
-                return Err(invalid(
-                    "Give either a range such as main...HEAD, or two commits, not both.",
-                ));
+                return Err(invalid(i18n::tf(
+                    "error.revision.rangeAndCommits",
+                    &[("example", "main...HEAD")],
+                )));
             }
             Ok(Some(RevisionSpec::Range {
                 from: from.clone(),
                 to: to.clone(),
             }))
         }
-        _ => Err(invalid(
-            "Diff Trek takes one commit or range, such as main...HEAD, or two commits.",
-        )
+        _ => Err(invalid(i18n::tf(
+            "error.revision.tooMany",
+            &[("example", "main...HEAD")],
+        ))
         .with_detail(revisions.join(" "))),
     }
 }
@@ -157,7 +158,10 @@ pub fn resolve(root: &Path, spec: &RevisionSpec, label: &str) -> AppResult<Resol
                 .ok()
                 .map(|output| output.text().trim().to_string())
                 .filter(|id| !id.is_empty())
-                .ok_or_else(|| invalid(format!("{from} and {to} have no common ancestor.")))?;
+                .ok_or_else(|| invalid(i18n::tf(
+                    "error.revision.noCommonAncestor",
+                    &[("from", from), ("to", to)],
+                )))?;
             (Some(base), to_id)
         }
     };
@@ -206,7 +210,7 @@ fn commit_id(root: &Path, name: &str) -> AppResult<String> {
 }
 
 fn unknown(name: &str) -> AppError {
-    invalid(format!("{name} is not a commit in this repository."))
+    invalid(i18n::tf("error.revision.unknown", &[("name", name)]))
 }
 
 fn short_id(root: &Path, id: &str) -> String {

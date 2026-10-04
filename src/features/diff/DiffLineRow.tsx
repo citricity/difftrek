@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { useT } from '../../i18n/index.ts';
 import type { DiffLine } from '../../types/index.ts';
 import type { LineRun } from '../../lib/runs.ts';
 import { wrapRuns } from '../../lib/wrap.ts';
@@ -47,6 +48,7 @@ interface Props {
  * function of its props with no hooks and no derived state.
  */
 function DiffLineRowImpl({ line, runs, wrapColumn, active, notes, style }: Props) {
+  const t = useT();
   const className = [
     styles.row,
     styles.line,
@@ -112,7 +114,7 @@ function DiffLineRowImpl({ line, runs, wrapColumn, active, notes, style }: Props
             )}
 
             {line.noNewline && index === wrapped.length - 1 && (
-              <span className={styles.noNewline}>no newline at end of file</span>
+              <span className={styles.noNewline}>{t('rows.noNewline')}</span>
             )}
           </span>
         </span>

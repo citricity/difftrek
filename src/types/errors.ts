@@ -1,3 +1,5 @@
+import { translate } from '../i18n/context.ts';
+
 /** Mirrors `ErrorKind` in `crates/extension-api/src/error.rs`. */
 export type AppErrorKind =
   | 'notARepository'
@@ -49,7 +51,7 @@ export class AppError extends Error {
         ? thrown.message
         : typeof thrown === 'string'
           ? thrown
-          : 'Something went wrong talking to the Git backend.';
+          : translate('error.backendUnreachable');
 
     return new AppError({ kind: 'gitCommandFailed', message, detail: null });
   }

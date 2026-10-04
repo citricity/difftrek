@@ -31,6 +31,7 @@ import {
   laneColour,
   ungroupedHunks,
 } from '../../lib/noteMarkers.ts';
+import { useT } from '../../i18n/index.ts';
 import styles from './NoteDialogs.module.css';
 
 import type { NoteDialog } from '../../lib/openNote.ts';
@@ -273,6 +274,7 @@ function SidebarEdge({
     last: number;
     moved: boolean;
   } | null>(null);
+  const t = useT();
   const [dragging, setDragging] = useState(false);
   /** The width the arrow keys have moved to but not yet saved. */
   const keyed = useRef<number | null>(null);
@@ -375,11 +377,11 @@ function SidebarEdge({
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize the notes sidebar"
+      aria-label={t('notes.resizeSidebar')}
       aria-valuemin={MIN_NOTE_SIDEBAR_WIDTH}
       aria-valuemax={MAX_NOTE_SIDEBAR_WIDTH}
       aria-valuenow={width}
-      title="Drag to resize · double-click to reset"
+      title={t('notes.resizeSidebarHint')}
       tabIndex={0}
       className={`${styles.edge} ${dragging ? styles.edgeDragging : ''}`}
       onPointerDown={onPointerDown}
@@ -401,6 +403,8 @@ function SidebarEdge({
 const TITLE_ID = 'note-dialog-title';
 
 function Header({ title, onClose }: { title: ReactNode; onClose: () => void }) {
+  const t = useT();
+
   return (
     <header className={styles.header}>
       <h2 id={TITLE_ID} className={styles.title}>
@@ -410,7 +414,7 @@ function Header({ title, onClose }: { title: ReactNode; onClose: () => void }) {
         type="button"
         className={styles.close}
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t('notes.close')}
       >
         <X size={14} aria-hidden="true" />
       </button>
@@ -438,6 +442,7 @@ function HunkDialog({
   onClose: () => void;
   onOpenChange: (changeId: string, hunkId?: string) => void;
 }) {
+  const t = useT();
   const hunk = notes.hunk(hunkId);
   const changes = hunk?.logicalChangeIds ?? [];
 
@@ -466,24 +471,18 @@ function HunkDialog({
 
         <section className={styles.reason}>
           {hunk === null || hunk.reasons.length === 0 ? (
-            <p className={styles.muted}>
-              No reason was recorded for this hunk. It may be a change nobody
-              meant to make.
-            </p>
+            <p className={styles.muted}>{t('notes.noReasonForHunk')}</p>
           ) : (
             <>
               {hunk.partial && (
                 <p className={styles.warning}>
-                  <span aria-hidden="true">!</span> This hunk has changed around
-                  the note since it was written. What follows is about the lines
-                  it was written for; the rest of the hunk is unaccounted for.
+                  <span aria-hidden="true">!</span> {t('notes.hunkChangedAround')}
                 </p>
               )}
 
               {hunk.ambiguous && (
                 <p className={styles.warning}>
-                  <span aria-hidden="true">!</span> Identical hunks were given
-                  different reasons, so both are shown.
+                  <span aria-hidden="true">!</span> {t('notes.identicalHunks')}
                 </p>
               )}
 
@@ -530,13 +529,14 @@ function ContentsDialog({
   onClearFocus?: () => void;
   onUnfocus?: () => void;
 }) {
+  const t = useT();
   const hunks = notes.changelog?.hunks ?? {};
   const changes = changesInOrder(order, hunks);
   const ungrouped = ungroupedHunks(order, hunks);
 
   return (
     <>
-      <Header title="Logical changes" onClose={onClose} />
+      <Header title={t('notes.logicalChanges')} onClose={onClose} />
 
       <div className={styles.body}>
         <ol className={styles.contents}>
@@ -556,11 +556,11 @@ function ContentsDialog({
                   <Layers size={11} aria-hidden="true" />
                 </span>
                 <span className={styles.entryText}>
-                  All logical changes
+                  {t('notes.allLogicalChanges')}
                   <span className={styles.entryMeta}>
                     {selected === null
-                      ? 'None picked out: every bar solid, every hunk stepped'
-                      : 'Show every change again'}
+                      ? t('notes.nonePickedOut')
+                      : t('notes.showEveryChange')}
                   </span>
                 </span>
               </button>
@@ -588,7 +588,7 @@ function ContentsDialog({
                   <span className={styles.entryText}>
                     {notes.describe(id)}
                     <span className={styles.entryMeta}>
-                      {covered} hunk{covered === 1 ? '' : 's'}
+                      {t('notes.hunkCount', { count: covered })}
                     </span>
                   </span>
                 </button>
@@ -602,10 +602,10 @@ function ContentsDialog({
                     aria-pressed={id === focused}
                     title={
                       id === focused
-                        ? 'Stop focusing this change'
-                        : 'Step through this change only'
+                        ? t('notes.stopFocusingChange')
+                        : t('notes.stepThroughChange')
                     }
-                    aria-label={`Focus logical change ${label}`}
+                    aria-label={t('notes.focusLogicalChange', { label })}
                     // A pressed toggle unpresses: clicking the focused
                     // change's crosshair again ends the focus.
                     onClick={() =>
@@ -624,9 +624,7 @@ function ContentsDialog({
 
         {ungrouped > 0 && (
           <p className={styles.muted}>
-            {ungrouped} hunk{ungrouped === 1 ? '' : 's'} belong
-            {ungrouped === 1 ? 's' : ''} to no logical change. The arrows step
-            past {ungrouped === 1 ? 'it' : 'them'}.
+            {t('notes.ungroupedHunks', { count: ungrouped })}
           </p>
         )}
       </div>
@@ -654,6 +652,7 @@ function HunkRow({
   current: boolean;
   onGoTo?: (hunkId: string) => void;
 }) {
+  const t = useT();
   const row = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
@@ -674,7 +673,7 @@ function HunkRow({
         <span className={styles.entryIndex}>{index + 1}</span>
         <span className={styles.entryText}>
           <span className={styles.hunkPath}>{fileOfHunk(hunkId)}</span>
-          <span className={styles.entryMeta}>{reason ?? 'No reason recorded'}</span>
+          <span className={styles.entryMeta}>{reason ?? t('notes.noReasonRecorded')}</span>
         </span>
       </button>
     </li>
@@ -698,9 +697,10 @@ function ChangeAccordion({
   docked: boolean;
   onOpenChange: (changeId: string, hunkId?: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(initiallyOpen);
   const change = notes.logicalChange(changeId);
-  const description = change?.description ?? 'Logical change';
+  const description = change?.description ?? t('notes.logicalChange');
 
   return (
     <div className={styles.accordion}>
@@ -736,7 +736,7 @@ function ChangeAccordion({
             onClick={() => onOpenChange(changeId, hunkId)}
           >
             <CornerDownRight size={13} aria-hidden="true" />
-            Open this change
+            {t('notes.openThisChange')}
           </button>
         </div>
       )}
@@ -769,6 +769,7 @@ function ChangeDialog({
   onGoToHunk?: (hunkId: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const change = notes.logicalChange(changeId);
   const tracker = notes.changelog?.issueTracker ?? null;
   // Defaulted rather than indexed directly: a backend that omits an empty list
@@ -797,7 +798,7 @@ function ChangeDialog({
             >
               {notes.labelOf(changeId)}
             </span>
-            Logical change
+            {t('notes.logicalChange')}
           </span>
         }
         onClose={onClose}
@@ -805,7 +806,7 @@ function ChangeDialog({
 
       <div className={styles.body}>
         <p className={styles.text}>
-          {change?.description ?? 'This change is not in the changelog’s table.'}
+          {change?.description ?? t('notes.changeNotInTable')}
         </p>
 
         {issues.length > 0 && (
@@ -835,7 +836,7 @@ function ChangeDialog({
         {covered.length > 0 && (
           <section className={styles.hunkList}>
             <h3 className={styles.hunkListTitle}>
-              {covered.length} hunk{covered.length === 1 ? '' : 's'}
+              {t('notes.hunkCount', { count: covered.length })}
             </h3>
 
             <ol className={styles.contents}>

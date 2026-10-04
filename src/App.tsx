@@ -28,6 +28,8 @@ import { useAiChangelog } from './hooks/useAiChangelog.ts';
 import { useRepositoryDiff } from './hooks/useRepositoryDiff.ts';
 import { useRowMetrics } from './hooks/useRowMetrics.ts';
 import { useSettings } from './hooks/useSettings.ts';
+import type { SettingsState } from './hooks/useSettings.ts';
+import { I18nProvider } from './i18n/index.ts';
 import { useZoom } from './hooks/useZoom.ts';
 import { autoWrapColumn, buildRowModel } from './lib/rows.ts';
 import {
@@ -74,10 +76,27 @@ export function App() {
   const [session, setSession] = useState(0);
   const reload = useCallback(() => setSession((current) => current + 1), []);
 
-  return <Session key={session} onReload={reload} />;
+  /**
+   * Preferences outlive a session: they belong to the app, not to what it has
+   * open — and the language has to be known above every session, so that the
+   * screens shown before one has loaded, or instead of one, speak it too.
+   */
+  const settingsState = useSettings();
+
+  return (
+    <I18nProvider preference={settingsState.settings.language}>
+      <Session key={session} onReload={reload} settingsState={settingsState} />
+    </I18nProvider>
+  );
 }
 
-function Session({ onReload }: { onReload: () => void }) {
+function Session({
+  onReload,
+  settingsState,
+}: {
+  onReload: () => void;
+  settingsState: SettingsState;
+}) {
   const {
     state,
     summary,
@@ -117,7 +136,6 @@ function Session({ onReload }: { onReload: () => void }) {
   }, [hasNotes]);
 
   const metrics = useRowMetrics(hasNotes);
-  const settingsState = useSettings();
   const { wrap, wrapLength } = settingsState.settings;
 
   /**

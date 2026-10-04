@@ -11,6 +11,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { dropScale, isWindowsWebview } from '../lib/dropPosition.ts';
+import { translate } from '../i18n/context.ts';
 import { AppError } from '../types/index.ts';
 import type {
   AiChangelog,
@@ -198,6 +199,22 @@ export function getGitAliasStatus(): Promise<GitAliasStatus> {
   return callNative<GitAliasStatus>('get_git_alias_status');
 }
 
+/**
+ * The operating system's preferred languages, most preferred first.
+ *
+ * Asked of the shell, because the webview's `navigator.languages` reports the
+ * languages the app bundle declares rather than the user's. Never rejects:
+ * without an answer the interface simply follows its setting, or the base
+ * language.
+ */
+export async function getSystemLocales(): Promise<string[]> {
+  try {
+    return await callNative<string[]>('get_system_locales');
+  } catch {
+    return typeof navigator === 'undefined' ? [] : [...navigator.languages];
+  }
+}
+
 /** Installs `git dt` in the global Git configuration. */
 export function installGitAlias(): Promise<GitAliasStatus> {
   return callNative<GitAliasStatus>('install_git_alias');
@@ -248,7 +265,7 @@ export function invokeExtension<T>(
     return Promise.reject(
       new AppError({
         kind: 'invalidDiff',
-        message: `${id} asked for a command that cannot exist: ${command}.`,
+        message: translate('error.noSuchCommand', { id, command }),
         detail: null,
       }),
     );

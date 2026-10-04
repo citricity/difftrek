@@ -5,6 +5,7 @@ import { AppError } from '../../types/index.ts';
 import type { GitAliasStatus } from '../../types/index.ts';
 import { GitAliasDialog } from './GitAliasDialog.tsx';
 import type { GitAliasDialogHandle } from './GitAliasDialog.tsx';
+import { rich, useT } from '../../i18n/index.ts';
 import styles from './NotARepository.module.css';
 
 /**
@@ -83,6 +84,10 @@ export function NotARepository({ alongside = false }: Props) {
 
   const openDialog = useCallback(() => dialog.current?.open(), []);
 
+  const t = useT();
+  const gitDt = <code>git dt</code>;
+  const action = alias === 'other' ? 'update' : 'install';
+
   if (alongside) {
     return (
       <>
@@ -91,20 +96,18 @@ export function NotARepository({ alongside = false }: Props) {
           <section className={styles.alongside}>
             <SquareTerminal className={styles.icon} size={16} aria-hidden="true" />
             <h2 className={styles.alongsideTitle}>
-              {alias === 'other' ? 'Update' : 'Set up'} <code>git dt</code>
+              {rich(t(`gitAlias.screen.alongside.${action}.title`), { command: gitDt })}
             </h2>
             <p className={styles.alongsideMessage}>
-              {alias === 'other'
-                ? 'It opens a different copy of Diff Trek.'
-                : 'to open the changes in any Git repository here.'}
+              {t(`gitAlias.screen.alongside.${action}.message`)}
             </p>
             <button
               type="button"
               className={styles.alongsideButton}
               onClick={openDialog}
-              aria-label={`${alias === 'other' ? 'Update' : 'Install'} git dt Command…`}
+              aria-label={t(`gitAlias.screen.${action}.button`, { command: 'git dt' })}
             >
-              {alias === 'other' ? 'Update' : 'Install'}…
+              {t(`gitAlias.screen.alongside.${action}.button`)}
             </button>
           </section>
         )}
@@ -118,22 +121,24 @@ export function NotARepository({ alongside = false }: Props) {
     <div className={styles.screen}>
       {alias === 'checking' && (
         <p className={styles.message} role="status">
-          Checking for the <code>git dt</code> command…
+          {rich(t('gitAlias.screen.checking'), { command: gitDt })}
         </p>
       )}
 
       {alias === 'installed' && (
         <>
           <GitCompare className={styles.icon} size={22} aria-hidden="true" />
-          <h1 className={styles.title}>Open Diff Trek from Git</h1>
+          <h1 className={styles.title}>{t('gitAlias.screen.openFromGit.title')}</h1>
           <p className={styles.message}>
-            Diff Trek currently only supports diffs from within Git. To use it, open a
-            terminal, <code>cd</code> to a Git repository, then type <code>git dt</code>{' '}
-            and press Return.
+            {rich(t('gitAlias.screen.openFromGit.message'), {
+              cd: <code>cd</code>,
+              command: gitDt,
+            })}
           </p>
           <p className={styles.message}>
-            To see the last committed changes, type <code>git dt HEAD</code> and press
-            Return.
+            {rich(t('gitAlias.screen.openFromGit.lastCommit'), {
+              command: <code>git dt HEAD</code>,
+            })}
           </p>
         </>
       )}
@@ -142,26 +147,13 @@ export function NotARepository({ alongside = false }: Props) {
         <>
           <SquareTerminal className={styles.icon} size={22} aria-hidden="true" />
           <h1 className={styles.title}>
-            {alias === 'other' ? 'Update' : 'Install'} the <code>git dt</code> command
+            {rich(t(`gitAlias.screen.${action}.title`), { command: gitDt })}
           </h1>
           <p className={styles.message}>
-            Diff Trek shows the changes in a Git repository, and opens from Git itself.
-            {alias === 'other' ? (
-              <>
-                {' '}
-                Your <code>git dt</code> command does not open this copy of Diff Trek.
-                Update it, then run <code>git dt</code> in any repository.
-              </>
-            ) : (
-              <>
-                {' '}
-                Install the <code>git dt</code> command, then run it in any repository
-                to see its changes here.
-              </>
-            )}
+            {rich(t(`gitAlias.screen.${action}.message`), { command: gitDt })}
           </p>
           <button type="button" className={styles.button} onClick={openDialog}>
-            {alias === 'other' ? 'Update' : 'Install'} <code>git dt</code> Command…
+            {rich(t(`gitAlias.screen.${action}.button`), { command: gitDt })}
           </button>
         </>
       )}

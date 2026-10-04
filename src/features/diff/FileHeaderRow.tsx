@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import { ChevronDown, ChevronRight, ChevronsUpDown } from 'lucide-react';
+import { useT } from '../../i18n/index.ts';
 import { splitPath, statusLetter } from '../../lib/format.ts';
 import { statusTitle, useWording } from './wording.ts';
 import type { DocumentFile } from '../../types/index.ts';
@@ -36,6 +37,7 @@ function FileHeaderRowImpl({
   onOpenFileList,
   style,
 }: Props) {
+  const t = useT();
   const wording = useWording();
   const { meta, collapsed } = file;
   const { directory, name } = splitPath(meta.path);
@@ -64,7 +66,9 @@ function FileHeaderRowImpl({
         className={styles.disclosure}
         onClick={onToggleCollapse}
         aria-expanded={!collapsed}
-        aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${meta.path}`}
+        aria-label={t(collapsed ? 'files.expand' : 'files.collapse', {
+          path: meta.path,
+        })}
       >
         <Chevron size={14} aria-hidden="true" />
       </button>
@@ -72,7 +76,7 @@ function FileHeaderRowImpl({
       <span
         className={styles.statusLetter}
         data-status={meta.status}
-        title={statusTitle(wording, meta.status)}
+        title={statusTitle(t, wording, meta.status)}
       >
         {statusLetter(meta.status)}
       </span>
@@ -85,7 +89,7 @@ function FileHeaderRowImpl({
         <button
           type="button"
           className={`${styles.path} ${styles.pathButton}`}
-          title={`${meta.path} — go to another file`}
+          title={t('files.goToAnother', { path: meta.path })}
           aria-haspopup="dialog"
           onClick={(event) => {
             const button = event.currentTarget.getBoundingClientRect();

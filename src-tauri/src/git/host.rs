@@ -5,6 +5,7 @@
 //! the same parser and truncation, and ends up looking and navigating exactly
 //! alike.
 
+use difftrek_extension_api::i18n;
 use super::command::run_no_index;
 use super::model::{ChangedFile, FileDiff};
 use super::repository::{binary_diff, diff_from_output, CONTEXT_LINES};
@@ -64,7 +65,7 @@ fn sides(old: Option<&Path>, new: Option<&Path>) -> AppResult<(String, String)> 
     if old.is_none() && new.is_none() {
         return Err(AppError::new(
             ErrorKind::InvalidDiff,
-            "There is nothing to compare.",
+            i18n::t("error.nothingToCompare"),
         ));
     }
 

@@ -13,5 +13,6 @@
 //! document, navigation included, works on it unchanged.
 
 pub mod error;
+pub mod i18n;
 pub mod model;
 pub mod source;
