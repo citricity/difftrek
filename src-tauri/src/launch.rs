@@ -155,6 +155,56 @@ pub(crate) fn target_from(
     }
 }
 
+/// What one window was opened to show.
+///
+/// The process's own arguments describe only the first window. Every later one
+/// is opened by a second launch — `git dt` run again, its arguments handed over
+/// by the single-instance plugin — or by File > New Window, with nothing to
+/// show until an extension opens something. So each window carries its own
+/// record of how it was launched, and the commands read that rather than
+/// `std::env::args`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowLaunch {
+    pub options: LaunchOptions,
+    /// `None` for a window opened empty: it has no repository to look for, and
+    /// says so rather than searching wherever the process happens to be.
+    pub target: Option<LaunchTarget>,
+}
+
+impl WindowLaunch {
+    /// The first window, from the process's own arguments and environment.
+    pub fn from_process() -> Self {
+        Self {
+            options: launch_options(),
+            target: Some(launch_target()),
+        }
+    }
+
+    /// A window for a launch another process handed over: its arguments, the
+    /// executable's name first, as `std::env::args` gives them, and the
+    /// directory it was started in.
+    ///
+    /// The environment is not passed along, so `DIFFTREK_REPO` only ever
+    /// applies to the first launch. `git dt` passes the repository explicitly,
+    /// which is the case that matters.
+    pub fn from_forwarded(args: &[String], cwd: &str) -> Self {
+        let cwd = (!cwd.is_empty()).then(|| PathBuf::from(cwd));
+
+        Self {
+            options: options_from(args.iter().skip(1).cloned()),
+            target: Some(target_from(args.iter().skip(1).cloned(), None, cwd)),
+        }
+    }
+
+    /// File > New Window: nothing to open yet.
+    pub fn empty() -> Self {
+        Self {
+            options: LaunchOptions::default(),
+            target: None,
+        }
+    }
+}
+
 #[cfg(test)]
 fn resolve_from(
     args: impl Iterator<Item = String>,
@@ -328,6 +378,55 @@ mod tests {
         assert_eq!(cli_request_from(args(&["/repos/alpha", "main...HEAD"])), None);
         assert_eq!(cli_request_from(args(&["--example"])), None);
         assert_eq!(cli_request_from(args(&["--createchangelogs=claude"])), None);
+    }
+
+    fn forwarded(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn a_forwarded_launch_skips_the_executable_and_keeps_the_revisions() {
+        let launch = WindowLaunch::from_forwarded(
+            &forwarded(&["/Applications/Diff Trek.app/Contents/MacOS/diff-trek", "/repos/alpha", "main...HEAD"]),
+            "/somewhere/else",
+        );
+
+        assert_eq!(
+            launch.target,
+            Some(LaunchTarget {
+                directory: PathBuf::from("/repos/alpha"),
+                revisions: vec!["main...HEAD".to_string()],
+            })
+        );
+        assert!(!launch.options.example);
+    }
+
+    #[test]
+    fn a_forwarded_launch_without_a_path_uses_its_own_working_directory() {
+        let launch = WindowLaunch::from_forwarded(&forwarded(&["diff-trek"]), "/repos/gamma");
+        assert_eq!(
+            launch.target.map(|target| target.directory),
+            Some(PathBuf::from("/repos/gamma"))
+        );
+
+        // Not ours: the process that received it is somewhere else entirely.
+        let launch = WindowLaunch::from_forwarded(&forwarded(&["diff-trek"]), "");
+        assert_eq!(
+            launch.target.map(|target| target.directory),
+            Some(PathBuf::from("."))
+        );
+    }
+
+    #[test]
+    fn a_forwarded_launch_can_ask_for_the_example() {
+        let launch = WindowLaunch::from_forwarded(&forwarded(&["diff-trek", "--example"]), "/r");
+        assert!(launch.options.example);
+    }
+
+    #[test]
+    fn an_empty_window_has_nothing_to_open() {
+        assert_eq!(WindowLaunch::empty().target, None);
+        assert!(!WindowLaunch::empty().options.example);
     }
 
     #[test]

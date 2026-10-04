@@ -46,6 +46,8 @@ import {
 import { followNote } from './lib/openNote.ts';
 import type { NoteCursor } from './lib/openNote.ts';
 import { throttle } from './lib/throttle.ts';
+import { windowTitle } from './lib/windowTitle.ts';
+import { onReloadRequested, setWindowTitle } from './services/backend.ts';
 import type { Direction } from './lib/navigation.ts';
 import type { ResolvedHunk, ViewMode } from './types/index.ts';
 import styles from './App.module.css';
@@ -75,6 +77,27 @@ const NO_HUNKS: Readonly<Record<string, ResolvedHunk>> = {};
 export function App() {
   const [session, setSession] = useState(0);
   const reload = useCallback(() => setSession((current) => current + 1), []);
+
+  /**
+   * `git dt` run again for what this window shows brings it forward and
+   * reloads it, rather than opening a second window on the same review. The
+   * shell has already forgotten the old source, so the new session reads the
+   * working tree, or resolves the range, afresh.
+   */
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void onReloadRequested(reload).then((stop) => {
+      if (cancelled) stop();
+      else unlisten = stop;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [reload]);
 
   /**
    * Preferences outlive a session: they belong to the app, not to what it has
@@ -118,6 +141,15 @@ function Session({
 
   /** Memoised so the rows reading it re-render only when the source changes. */
   const wording = useMemo(() => wordingOf(state.repository), [state.repository]);
+
+  /**
+   * The window is named after what it shows, so the Dock's and the Window
+   * menu's lists of windows can be told apart. Until something has loaded —
+   * and on the landing screen — it keeps the name it has.
+   */
+  useEffect(() => {
+    if (state.repository !== null) void setWindowTitle(windowTitle(state.repository));
+  }, [state.repository]);
   const hasNotes = changelog.changelog !== null;
 
   /**

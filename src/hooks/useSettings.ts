@@ -9,10 +9,13 @@
  * behind it — a preference that visibly lags the checkbox feels broken, and the
  * backend clamps rather than rejects, so the only surprise it can return is a
  * value slightly different from the one asked for.
+ *
+ * Settings belong to the app, not to a window, so what another window stores
+ * is adopted here as it arrives.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getSettings, setSettings } from '../services/backend.ts';
+import { getSettings, onSettingsChanged, setSettings } from '../services/backend.ts';
 import { AppError, DEFAULT_SETTINGS } from '../types/index.ts';
 import type { Settings } from '../types/index.ts';
 
@@ -47,19 +50,56 @@ export function useSettings(): SettingsState {
     };
   }, []);
 
+  /**
+   * Whether something newer than the file as first read has been adopted: a
+   * value another window stored, or a change made here.
+   *
+   * The first read is a snapshot, and it can be overtaken. Another window may
+   * store new settings after the file was read but before the answer arrives;
+   * applied then, the stale snapshot would put back what that window changed,
+   * and nothing would correct it until the next change. So the snapshot only
+   * applies while nothing newer has.
+   */
+  const superseded = useRef(false);
+
   useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
     void (async () => {
+      // Listening first, so a change stored while the file is being read is
+      // heard rather than lost between the two.
+      try {
+        const stop = await onSettingsChanged((stored) => {
+          superseded.current = true;
+          setLocal(stored);
+        });
+        // An unmount that came first is honoured as soon as the
+        // subscription resolves.
+        if (cancelled) stop();
+        else unlisten = stop;
+      } catch (thrown) {
+        // Other windows' changes will not arrive, but this window still works.
+        console.error('[difftrek] could not follow other windows’ settings', thrown);
+      }
+
       try {
         const stored = await getSettings();
-        if (alive.current) setLocal(stored);
+        if (alive.current && !superseded.current) setLocal(stored);
       } catch (thrown) {
         // Defaults are already on screen; there is nothing to tell the user.
         console.error('[difftrek] reading preferences failed', thrown);
       }
     })();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   const update = useCallback((change: Partial<Settings>): void => {
+    superseded.current = true;
     setLocal((previous) => {
       const next = { ...previous, ...change };
 

@@ -7,8 +7,9 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import type { EventCallback } from '@tauri-apps/api/event';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { dropScale, isWindowsWebview } from '../lib/dropPosition.ts';
 import { translate } from '../i18n/context.ts';
@@ -110,6 +111,19 @@ export function getFileContents(
 }
 
 /**
+ * Subscribes to an event the shell sends this window.
+ *
+ * Never the global `listen` from `@tauri-apps/api/event`: that one hears an
+ * event whichever window it was sent to, so with three windows open a menu
+ * choice meant for the one in front would open a dialog in all three. A
+ * window's own `listen` hears what is sent to it and what is sent to every
+ * window, which is exactly right.
+ */
+function listenHere<T>(event: string, handler: EventCallback<T>): Promise<() => void> {
+  return getCurrentWebviewWindow().listen<T>(event, handler);
+}
+
+/**
  * Subscribes to one of the shell's menu items.
  *
  * The menu belongs to the desktop shell and the dialogs belong to the webview,
@@ -119,9 +133,49 @@ export function getFileContents(
 async function onMenuEvent(event: string, handler: () => void): Promise<() => void> {
   if (!isTauri()) return () => undefined;
 
-  return listen(event, () => {
+  return listenHere(event, () => {
     handler();
   });
+}
+
+/**
+ * `git dt` was run again for what this window shows: the shell has brought it
+ * to the front and wants it loaded afresh.
+ */
+export function onReloadRequested(handler: () => void): Promise<() => void> {
+  return onMenuEvent('reload-requested', handler);
+}
+
+/**
+ * Another window stored new settings. Carries what was stored, so this window
+ * can take it as it is — a language or wrapping change applies everywhere at
+ * once, not window by window as each is reloaded.
+ */
+export async function onSettingsChanged(
+  handler: (settings: Settings) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => undefined;
+
+  return listenHere<Settings>('settings-changed', (event) => {
+    handler(event.payload);
+  });
+}
+
+/**
+ * Names this window after what it shows.
+ *
+ * The Dock's right-click menu and the Window menu list windows by title, and
+ * a list of identical "Diff Trek"s is no help choosing one. Best effort: a
+ * window that keeps its old title is not worth an error.
+ */
+export async function setWindowTitle(title: string): Promise<void> {
+  if (!isTauri()) return;
+
+  try {
+    await getCurrentWindow().setTitle(title);
+  } catch (thrown) {
+    console.error('[difftrek] could not set the window title', thrown);
+  }
 }
 
 /** Diff Trek > Settings… */
@@ -157,7 +211,7 @@ export function onZoomRequested(
 ): Promise<() => void> {
   if (!isTauri()) return Promise.resolve(() => undefined);
 
-  return listen<ZoomDirection>('zoom-requested', (event) => {
+  return listenHere<ZoomDirection>('zoom-requested', (event) => {
     handler(event.payload);
   });
 }

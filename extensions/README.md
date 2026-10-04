@@ -20,6 +20,9 @@ extensions/<id>/
 - **The Rust half** depends on `difftrek-extension-api`
   (`../../../crates/extension-api`) for the domain types and for
   `ActiveSource`, through which it can open a new source of files to compare.
+  Sources are kept per window: a command takes the calling
+  `window: tauri::WebviewWindow<R>` and opens with
+  `active.open(window.label(), source)`, so other windows keep what they show.
   `scripts/extensions.mjs` links it in — a line in the marked block of
   `src-tauri/Cargo.toml` and a call in `src-tauri/src/extensions.rs` — on every
   `pnpm dev`, `pnpm build` and `pnpm test:rust`. Run `pnpm extensions` after
@@ -27,7 +30,9 @@ extensions/<id>/
 - **The React half** imports only from `@difftrek/extension`
   (`src/extensions/api.ts`) and is found by Vite at build time.
 - **Capabilities** are copied into `src-tauri/capabilities/` as
-  `extension-<id>.json`, which is gitignored.
+  `extension-<id>.json`, which is gitignored. Grant them to `"windows": ["*"]`:
+  Diff Trek opens more windows than `main`, and a capability naming only
+  `main` leaves the extension dead in every other one.
 
 An extension is never load-bearing: a panel that throws is removed, and the
 rest of the app carries on.

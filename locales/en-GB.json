@@ -246,6 +246,7 @@
   "menu.hideOthers": "Hide Others",
   "menu.quit": "Quit {app}",
   "menu.file": "File",
+  "menu.newWindow": "New Window",
   "menu.closeWindow": "Close Window",
   "menu.edit": "Edit",
   "menu.undo": "Undo",
