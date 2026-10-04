@@ -246,6 +246,7 @@
   "menu.hideOthers": "Andere ausblenden",
   "menu.quit": "{app} beenden",
   "menu.file": "Ablage",
+  "menu.newWindow": "Neues Fenster",
   "menu.closeWindow": "Fenster schließen",
   "menu.edit": "Bearbeiten",
   "menu.undo": "Widerrufen",

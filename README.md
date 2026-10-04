@@ -76,6 +76,15 @@ Without the alias the revision goes after the repository path:
 An alias installed by an earlier version may not pass arguments on, or may open
 the window behind the terminal; install it again to pick up both.
 
+However many times you run it, there is one Diff Trek, with a window per
+review, so macOS shows one Dock icon and its right-click menu (like the Window
+menu) lists the windows by repository and branch or range. Running `git dt`
+again for a repository and range that already has a window brings that window
+to the front and reloads it; anything else opens a new one. On macOS,
+**File > New Window** (⌘N) opens an empty window, for comparing something
+else beside what is already open; elsewhere, starting Diff Trek again outside
+a repository does the same. Closing the last window quits.
+
 ## What it shows
 
 Given a commit or range, Diff Trek shows the diff between those two commits,

@@ -7,7 +7,23 @@ import type {
   DocumentFile,
   FileDiff,
   LineKind,
+  RepositoryInfo,
 } from '../types/index.ts';
+
+export function makeRepositoryInfo(overrides: Partial<RepositoryInfo> = {}): RepositoryInfo {
+  return {
+    source: 'git',
+    root: '/repos/example',
+    name: 'example',
+    branch: 'main',
+    head: 'abc1234',
+    detached: false,
+    comparison: null,
+    oneSided: 'change',
+    sideNames: null,
+    ...overrides,
+  };
+}
 
 export function makeLine(
   kind: LineKind,

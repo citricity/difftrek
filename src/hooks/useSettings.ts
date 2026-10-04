@@ -9,10 +9,13 @@
  * behind it — a preference that visibly lags the checkbox feels broken, and the
  * backend clamps rather than rejects, so the only surprise it can return is a
  * value slightly different from the one asked for.
+ *
+ * Settings belong to the app, not to a window, so what another window stores
+ * is adopted here as it arrives.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getSettings, setSettings } from '../services/backend.ts';
+import { getSettings, onSettingsChanged, setSettings } from '../services/backend.ts';
 import { AppError, DEFAULT_SETTINGS } from '../types/index.ts';
 import type { Settings } from '../types/index.ts';
 
@@ -57,6 +60,25 @@ export function useSettings(): SettingsState {
         console.error('[difftrek] reading preferences failed', thrown);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    // The subscription resolves asynchronously; an unmount that comes first
+    // is honoured as soon as it does.
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    void onSettingsChanged((stored) => {
+      setLocal(stored);
+    }).then((stop) => {
+      if (cancelled) stop();
+      else unlisten = stop;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
   }, []);
 
   const update = useCallback((change: Partial<Settings>): void => {

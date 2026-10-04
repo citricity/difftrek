@@ -13,9 +13,16 @@ import type { Settings } from '../types/index.ts';
 const getSettings = vi.fn<() => Promise<Settings>>();
 const setSettings = vi.fn<(settings: Settings) => Promise<Settings>>();
 
+/** What another window storing settings would call. */
+let changedElsewhere: ((settings: Settings) => void) | null = null;
+
 vi.mock('../services/backend.ts', () => ({
   getSettings: () => getSettings(),
   setSettings: (settings: Settings) => setSettings(settings),
+  onSettingsChanged: (handler: (settings: Settings) => void) => {
+    changedElsewhere = handler;
+    return Promise.resolve(() => undefined);
+  },
 }));
 
 const { useSettings } = await import('./useSettings.ts');
@@ -54,5 +61,19 @@ describe('useSettings', () => {
 
     act(() => result.current.update({ noteSidebarWidth: 5000 }));
     await waitFor(() => expect(result.current.settings.noteSidebarWidth).toBe(900));
+  });
+
+  it('adopts what another window stored', async () => {
+    const { result } = renderHook(() => useSettings());
+    await waitFor(() => expect(changedElsewhere).not.toBeNull());
+
+    act(() =>
+      changedElsewhere?.({ ...DEFAULT_SETTINGS, language: 'fr', wrap: 'auto' }),
+    );
+
+    expect(result.current.settings.language).toBe('fr');
+    expect(result.current.settings.wrap).toBe('auto');
+    // Taken as stored: echoing it back would only write the same file again.
+    expect(setSettings).not.toHaveBeenCalled();
   });
 });

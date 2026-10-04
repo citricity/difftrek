@@ -246,6 +246,7 @@
   "menu.hideOthers": "Ocultar otros",
   "menu.quit": "Salir de {app}",
   "menu.file": "Archivo",
+  "menu.newWindow": "Nueva ventana",
   "menu.closeWindow": "Cerrar ventana",
   "menu.edit": "Edición",
   "menu.undo": "Deshacer",

@@ -14,6 +14,10 @@
 //! whatever the label says. Settings is not one of them, because only the app
 //! knows what it should open, so it is a normal item that relays the click to
 //! the webview as an event; likewise installing `git dt` and the zoom items.
+//! Those events go to the window in front only (see `windows::menu_target`):
+//! with three windows open, ⌘, opens one Settings dialog, not three. New
+//! Window is the one item the shell answers itself, since what it makes is a
+//! window, not something inside one.
 //!
 //! The Window and Help submenus carry Tauri's well-known ids, which is what
 //! makes `set_menu` hand them to AppKit as the windows and help menus (it
@@ -37,6 +41,11 @@ pub const SETTINGS_EVENT: &str = "settings-requested";
 /// Settings, what it opens — a confirmation — belongs to the webview.
 pub const GIT_ALIAS_ID: &str = "install-git-alias";
 pub const GIT_ALIAS_EVENT: &str = "git-alias-requested";
+
+/// File > New Window: an empty window, showing the landing screen, from which
+/// an extension can open something else to compare without disturbing what
+/// is already open.
+pub const NEW_WINDOW_ID: &str = "new-window";
 
 /// The View items that scale the interface, and the event carrying the choice
 /// to the webview.
@@ -128,11 +137,23 @@ pub fn build<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu
         ],
     )?;
 
+    let new_window = MenuItem::with_id(
+        app,
+        NEW_WINDOW_ID,
+        t("menu.newWindow"),
+        true,
+        Some("CmdOrCtrl+N"),
+    )?;
+
     let file = Submenu::with_items(
         app,
         t("menu.file"),
         true,
-        &[&PredefinedMenuItem::close_window(app, Some(&t("menu.closeWindow")))?],
+        &[
+            &new_window,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, Some(&t("menu.closeWindow")))?,
+        ],
     )?;
 
     let edit = Submenu::with_items(

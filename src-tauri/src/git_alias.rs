@@ -74,9 +74,11 @@ pub struct AliasStatus {
 /// running the executable. A process the terminal starts directly is not a
 /// launch the user asked for as far as macOS is concerned, so since macOS 14
 /// its window opens behind the terminal and is refused focus. LaunchServices
-/// launches are, so the window comes to the front. `-n` keeps one process per
-/// `git dt`, as running the executable did, and `open` returns at once, so
-/// nothing is backgrounded.
+/// launches are, so the window comes to the front. `-n` starts a fresh
+/// process even when Diff Trek is already running: without it macOS would only
+/// bring the running app forward and drop the arguments. That process hands
+/// them to the running one and exits (see `windows.rs`), so every window still
+/// ends up in one process. `open` returns at once, so nothing is backgrounded.
 pub fn alias_value(binary: &str) -> String {
     let executable = escape_double_quoted(binary);
     let window = match app_bundle(binary) {

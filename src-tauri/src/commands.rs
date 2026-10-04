@@ -13,13 +13,19 @@ use crate::git_alias::{self, AliasStatus, ConfigTarget};
 use crate::git::repository::{self, Side, DEFAULT_MAX_DIFF_BYTES};
 use crate::git::revision::{self, Comparison};
 use crate::git::source::GitSource;
-use crate::launch::{self, launch_target, LaunchOptions};
+use crate::launch::LaunchOptions;
 use crate::locale;
 use crate::settings::{self, Settings};
 use crate::state::AppState;
+use crate::windows::Windows;
 use difftrek_extension_api::source::{ActiveSource, Source};
 use std::sync::Arc;
-use tauri::{Manager, Runtime, State};
+use tauri::{Emitter, EventTarget, Manager, Runtime, State, WebviewWindow};
+
+/// Sent to every other window when one stores new settings, carrying what was
+/// stored, so that a language or wrapping change made in one window is not
+/// left unseen in the rest until they reload.
+pub const SETTINGS_CHANGED_EVENT: &str = "settings-changed";
 
 /// Where `settings.json` lives, per the platform's own conventions.
 fn settings_path<R: Runtime>(app: &tauri::AppHandle<R>) -> std::path::PathBuf {
@@ -31,17 +37,21 @@ fn settings_path<R: Runtime>(app: &tauri::AppHandle<R>) -> std::path::PathBuf {
     settings::file_path(&config_dir)
 }
 
-/// Scales the whole interface to a stored level.
+/// Scales the whole interface to a stored level, in every window.
 ///
 /// Page zoom is a property of the webview rather than of the document, so it
 /// is the shell that applies it: the frontend chooses a level and never
-/// touches the scaling itself. A platform that will not zoom is not a reason
-/// to fail a save, so the error is reported and swallowed.
+/// touches the scaling itself. The level is a setting, and settings belong to
+/// the app rather than to a window, so every window takes it.
 fn apply_zoom<R: Runtime>(app: &tauri::AppHandle<R>, settings: &Settings) {
-    let Some(webview) = app.get_webview_window("main") else {
-        return;
-    };
+    for webview in app.webview_windows().values() {
+        zoom(webview, settings);
+    }
+}
 
+/// A platform that will not zoom is not a reason to fail a save, so the error
+/// is reported and swallowed.
+fn zoom<R: Runtime>(webview: &WebviewWindow<R>, settings: &Settings) {
     if let Err(err) = webview.set_zoom(settings::zoom_factor(settings.zoom)) {
         eprintln!("[difftrek] could not set the zoom level: {err}");
     }
@@ -52,6 +62,11 @@ fn apply_zoom<R: Runtime>(app: &tauri::AppHandle<R>, settings: &Settings) {
 /// after it appears.
 pub fn apply_stored_zoom<R: Runtime>(app: &tauri::AppHandle<R>) {
     apply_zoom(app, &settings::load_from(&settings_path(app)));
+}
+
+/// The same for a window opened later.
+pub fn apply_stored_zoom_to<R: Runtime>(app: &tauri::AppHandle<R>, window: &WebviewWindow<R>) {
+    zoom(window, &settings::load_from(&settings_path(app)));
 }
 
 /// The settings as stored, for setup to read before the window exists.
@@ -75,6 +90,7 @@ pub fn get_settings<R: Runtime>(app: tauri::AppHandle<R>) -> Settings {
 #[tauri::command]
 pub fn set_settings<R: Runtime>(
     app: tauri::AppHandle<R>,
+    window: WebviewWindow<R>,
     settings: Settings,
 ) -> AppResult<Settings> {
     let path = settings_path(&app);
@@ -94,6 +110,17 @@ pub fn set_settings<R: Runtime>(
         }
     }
 
+    // Every other window hears what was stored; the one that asked already
+    // has it, as this command's answer.
+    let from = window.label().to_string();
+    let others = |target: &EventTarget| match target {
+        EventTarget::WebviewWindow { label } => *label != from,
+        _ => false,
+    };
+    if let Err(err) = app.emit_filter(SETTINGS_CHANGED_EVENT, &stored, others) {
+        eprintln!("[difftrek] could not share the new settings: {err}");
+    }
+
     Ok(stored)
 }
 
@@ -106,19 +133,21 @@ pub fn get_system_locales() -> Vec<String> {
     locale::system_locales()
 }
 
-/// How the app was launched.
+/// How the calling window was launched.
 ///
 /// The frontend reads this once before anything else. Under `--example` it
 /// serves its own sample diff and never calls the commands below, which is why
-/// nothing here has to know about example mode.
+/// nothing here has to know about example mode. Each window answers for
+/// itself: `git dt --example` run while a repository is open opens the sample
+/// beside it.
 #[tauri::command]
-pub fn get_launch_options() -> LaunchOptions {
-    launch::launch_options()
+pub fn get_launch_options(window: WebviewWindow, windows: State<'_, Windows>) -> LaunchOptions {
+    windows.launch(window.label()).options
 }
 
-/// Describes what is open, for the header.
+/// Describes what is open in the calling window, for the header.
 ///
-/// The first call opens the repository Diff Trek was launched in, and
+/// The first call opens the repository the window was launched on, and
 /// resolves any commit or range it was launched with — a revision that does
 /// not resolve fails here, so it reaches the startup error screen rather than
 /// an empty diff. Once a source is open, whether that repository or one an
@@ -126,17 +155,26 @@ pub fn get_launch_options() -> LaunchOptions {
 /// again when it reloads onto an extension's source.
 #[tauri::command]
 pub fn get_repository_info(
+    window: WebviewWindow,
+    windows: State<'_, Windows>,
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
 ) -> AppResult<RepositoryInfo> {
-    // Whatever is listed next comes from the source described now.
-    state.clear();
+    let window = window.label();
 
-    if let Some(source) = sources.current() {
+    // Whatever is listed next comes from the source described now.
+    state.clear(window);
+
+    if let Some(source) = sources.current(window) {
         return source.info();
     }
 
-    let target = launch_target();
+    // A window opened empty, from File > New Window, has nowhere to look.
+    // It says so, which is the landing screen, where an extension may offer
+    // something else to open.
+    let Some(target) = windows.launch(window).target else {
+        return Err(AppError::not_a_repository());
+    };
     let root = repository::discover(&target.directory)?;
 
     let (comparison, label) = match revision::comparison_for(&root, &target.revisions)? {
@@ -145,7 +183,7 @@ pub fn get_repository_info(
     };
 
     let source = Arc::new(GitSource::new(root, comparison, label));
-    sources.open(source.clone());
+    sources.open(window, source.clone());
     source.info()
 }
 
@@ -160,8 +198,11 @@ pub fn get_repository_info(
 /// Changelogs are written against Git diffs, so a source that is not a
 /// repository never has one.
 #[tauri::command]
-pub fn get_ai_changelog(sources: State<'_, ActiveSource>) -> AppResult<Option<ChangelogView>> {
-    let source = sources.require()?;
+pub fn get_ai_changelog(
+    window: WebviewWindow,
+    sources: State<'_, ActiveSource>,
+) -> AppResult<Option<ChangelogView>> {
+    let source = sources.require(window.label())?;
     let Some(git) = source.as_any().downcast_ref::<GitSource>() else {
         return Ok(None);
     };
@@ -171,14 +212,16 @@ pub fn get_ai_changelog(sources: State<'_, ActiveSource>) -> AppResult<Option<Ch
 
 #[tauri::command]
 pub fn get_changed_files(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
 ) -> AppResult<Vec<ChangedFile>> {
     // Listed and stored against one source, taken once: an extension opening
     // another meanwhile cannot pair this listing with it.
-    let source = sources.require()?;
+    let label = window.label();
+    let source = sources.require(label)?;
     let files = source.changed_files()?;
-    state.set_files(&source, files.clone());
+    state.set_files(label, &source, files.clone());
     Ok(files)
 }
 
@@ -188,25 +231,29 @@ pub fn get_changed_files(
 /// `truncated`, without changing the default budget for everything else.
 #[tauri::command]
 pub fn get_file_diff(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
     path: String,
     max_bytes: Option<usize>,
 ) -> AppResult<FileDiff> {
-    let source = sources.require()?;
-    let meta = state.file(&source, &path)?;
+    let label = window.label();
+    let source = sources.require(label)?;
+    let meta = state.file(label, &source, &path)?;
     source.file_diff(&meta, max_bytes.unwrap_or(DEFAULT_MAX_DIFF_BYTES))
 }
 
 #[tauri::command]
 pub fn get_file_contents(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
     path: String,
     side: String,
 ) -> AppResult<String> {
-    let source = sources.require()?;
-    let meta = state.file(&source, &path)?;
+    let label = window.label();
+    let source = sources.require(label)?;
+    let meta = state.file(label, &source, &path)?;
 
     if meta.binary {
         return Err(AppError::new(
@@ -227,13 +274,15 @@ pub fn get_file_contents(
 /// to a size, whichever source is doing the reading.
 #[tauri::command]
 pub fn get_image_bytes(
+    window: WebviewWindow,
     state: State<'_, AppState>,
     sources: State<'_, ActiveSource>,
     path: String,
     side: String,
 ) -> AppResult<tauri::ipc::Response> {
-    let source = sources.require()?;
-    let meta = state.file(&source, &path)?;
+    let label = window.label();
+    let source = sources.require(label)?;
+    let meta = state.file(label, &source, &path)?;
     let side = Side::parse(&side)?;
 
     let source_path = match side {
