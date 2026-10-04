@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
-import { pluralise } from '../../lib/format.ts';
+import { useT } from '../../i18n/index.ts';
 import { rangeLength } from '../../lib/ranges.ts';
 import type { LineRange } from '../../types/index.ts';
 import styles from './DiffRows.module.css';
@@ -35,6 +35,7 @@ interface Props {
  * last hunk has nothing to expand up towards.
  */
 function ExpanderRowImpl({ range, above, below, onExpand, style }: Props) {
+  const t = useT();
   const hidden = rangeLength(range);
   const wholeGap = hidden <= STEP;
 
@@ -46,8 +47,8 @@ function ExpanderRowImpl({ range, above, below, onExpand, style }: Props) {
             type="button"
             className={styles.expanderButton}
             onClick={() => onExpand(range)}
-            aria-label={`Show the remaining ${pluralise(hidden, 'line')}`}
-            title={`Show the remaining ${pluralise(hidden, 'line')}`}
+            aria-label={t('rows.showRemaining', { count: hidden })}
+            title={t('rows.showRemaining', { count: hidden })}
           >
             <ChevronsUpDown size={13} aria-hidden="true" />
           </button>
@@ -60,8 +61,8 @@ function ExpanderRowImpl({ range, above, below, onExpand, style }: Props) {
                 onClick={() =>
                   onExpand({ start: range.end - STEP + 1, end: range.end })
                 }
-                aria-label={`Show ${STEP} lines above`}
-                title={`Show ${STEP} lines above`}
+                aria-label={t('rows.showAbove', { count: STEP })}
+                title={t('rows.showAbove', { count: STEP })}
               >
                 <ChevronUp size={13} aria-hidden="true" />
               </button>
@@ -74,8 +75,8 @@ function ExpanderRowImpl({ range, above, below, onExpand, style }: Props) {
                 onClick={() =>
                   onExpand({ start: range.start, end: range.start + STEP - 1 })
                 }
-                aria-label={`Show ${STEP} lines below`}
-                title={`Show ${STEP} lines below`}
+                aria-label={t('rows.showBelow', { count: STEP })}
+                title={t('rows.showBelow', { count: STEP })}
               >
                 <ChevronDown size={13} aria-hidden="true" />
               </button>
@@ -84,7 +85,9 @@ function ExpanderRowImpl({ range, above, below, onExpand, style }: Props) {
         )}
       </span>
 
-      <span className={styles.expanderLabel}>{pluralise(hidden, 'line')} hidden</span>
+      <span className={styles.expanderLabel}>
+        {t('rows.linesHidden', { count: hidden })}
+      </span>
     </div>
   );
 }

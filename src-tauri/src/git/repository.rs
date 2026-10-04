@@ -11,8 +11,9 @@
 //! function here reads between those two commits instead, and never touches
 //! the index or the working tree.
 
+use difftrek_extension_api::i18n;
 use super::command::{literal_pathspec, run, GitOutput};
-use super::model::{ChangedFile, ComparisonInfo, FileDiff, OneSided, RepositoryInfo, SideNames};
+use super::model::{ChangedFile, ComparisonInfo, FileDiff, OneSided, RepositoryInfo};
 use super::parse::{merge_changed_files, parse_file_diff, parse_name_status, parse_numstat};
 use super::revision::Comparison;
 use crate::error::{AppError, AppResult, ErrorKind};
@@ -73,7 +74,7 @@ pub fn info(root: &Path, comparison: Option<ComparisonInfo>) -> AppResult<Reposi
         detached,
         comparison,
         one_sided: OneSided::Change,
-        side_names: SideNames::default(),
+        side_names: None,
     })
 }
 
@@ -246,7 +247,7 @@ pub fn require_image_path(path: &str) -> AppResult<()> {
 
     Err(AppError::new(
         ErrorKind::BinaryFile,
-        format!("{path} is not an image Diff Trek can show."),
+        i18n::tf("error.notAnImage", &[("path", path)]),
     ))
 }
 
@@ -255,9 +256,12 @@ pub fn limit_image(path: &str, bytes: Vec<u8>) -> AppResult<Vec<u8>> {
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(AppError::new(
             ErrorKind::BinaryFile,
-            format!(
-                "{path} is too large to preview ({} MB).",
-                bytes.len() / (1024 * 1024)
+            i18n::tf(
+                "error.imageTooLarge",
+                &[
+                    ("path", path),
+                    ("size", &(bytes.len() / (1024 * 1024)).to_string()),
+                ],
             ),
         ));
     }
@@ -289,11 +293,11 @@ pub fn file_bytes(root: &Path, comparison: &Comparison, path: &str, side: Side) 
                 std::io::ErrorKind::NotFound => AppError::file_not_found(path),
                 std::io::ErrorKind::PermissionDenied => AppError::new(
                     ErrorKind::PermissionDenied,
-                    format!("Diff Trek cannot read {path}."),
+                    i18n::tf("error.cannotRead", &[("path", path)]),
                 ),
                 _ => AppError::new(
                     ErrorKind::GitCommandFailed,
-                    format!("Could not read {path}."),
+                    i18n::tf("error.couldNotRead", &[("path", path)]),
                 )
                 .with_detail(err.to_string()),
             })

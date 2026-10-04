@@ -7,9 +7,39 @@
  */
 
 import type { ComponentType } from 'react';
+import { useLocale, useT as useCoreT } from '../i18n/context.ts';
+import type { MessageKey } from '../i18n/catalogues.ts';
+import type { MessageArgs, Translate } from '../i18n/translate.ts';
 import type { FileDropEvent } from '../services/backend.ts';
 
 export type { FileDropEvent };
+export type { MessageArgs, Translate };
+export { rich } from '../i18n/rich.tsx';
+
+/**
+ * Words, in the language the interface is in.
+ *
+ * An extension's own words go in `extensions/<id>/locales/<tag>.json` — one
+ * flat JSON object per language the core ships, `en-GB` at least — and are
+ * layered over the core's: the same `t` reads both, so the extension can use
+ * the core's words as well as its own, and may reword the core's. Its Rust
+ * half embeds the same files and layers them with `i18n::add_layer`, so its
+ * error messages come out in the same language.
+ *
+ * Messages are strings with `{name}` placeholders, or plural forms such as
+ * `{ "one": "{count} folder", "other": "{count} folders" }`. Name the
+ * extension's keys after it (`dirCompare.title`) so they cannot collide with
+ * the core's or another extension's by accident.
+ *
+ * Pass the extension's own keys as the type argument to have them checked:
+ * `useT<keyof typeof import('../locales/en-GB.json')>()`.
+ */
+export function useT<Key extends string = never>(): Translate<Key | MessageKey> {
+  return useCoreT() as Translate<Key | MessageKey>;
+}
+
+/** The interface's language tag, such as `en-GB` or `de`. */
+export { useLocale };
 
 /**
  * What Diff Trek has open.

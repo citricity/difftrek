@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { useT } from '../../i18n/index.ts';
 import styles from './DiffDocument.module.css';
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
  * stuck.
  */
 export function PaneScrollbar({ contentWidth, visibleWidth, offset, onScroll }: Props) {
+  const t = useT();
   const track = useRef<HTMLDivElement>(null);
   const max = Math.max(0, contentWidth - visibleWidth);
   const drag = useRef<{ startX: number; startOffset: number } | null>(null);
@@ -76,7 +78,7 @@ export function PaneScrollbar({ contentWidth, visibleWidth, offset, onScroll }: 
         role="scrollbar"
         aria-orientation="horizontal"
         aria-valuenow={Math.round(position * 100)}
-        aria-label="Scroll both panes horizontally"
+        aria-label={t('document.paneScrollbar')}
       />
     </div>
   );

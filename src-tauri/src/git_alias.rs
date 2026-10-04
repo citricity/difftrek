@@ -9,6 +9,7 @@
 //! matter: the executable's path goes inside a shell command, and a path with a
 //! space, a quote or a `$` in it has to arrive at the shell intact.
 
+use difftrek_extension_api::i18n;
 use crate::error::{AppError, AppResult, ErrorKind};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -128,28 +129,15 @@ fn single_quoted(text: &str) -> String {
 /// Paths the alias should not be pointed at without the user knowing why.
 pub fn warning_for(binary: &str) -> Option<String> {
     if binary.contains("/AppTranslocation/") {
-        return Some(
-            "macOS is running Diff Trek from a temporary location, which will not \
-             exist next time. Move Diff Trek to Applications, open it from there, \
-             and install the command again."
-                .into(),
-        );
+        return Some(i18n::t("gitAlias.warning.translocated"));
     }
 
     if binary.starts_with("/Volumes/") {
-        return Some(
-            "Diff Trek is running from a disk image. git dt will stop working once \
-             it is ejected — copy Diff Trek to Applications first."
-                .into(),
-        );
+        return Some(i18n::tf("gitAlias.warning.diskImage", &[("command", "git dt")]));
     }
 
     if binary.contains("/target/debug/") {
-        return Some(
-            "This is a development build. git dt will launch it, but it only works \
-             while the dev server is running."
-                .into(),
-        );
+        return Some(i18n::tf("gitAlias.warning.devBuild", &[("command", "git dt")]));
     }
 
     None
@@ -160,7 +148,7 @@ pub fn current_binary() -> AppResult<String> {
     let path = std::env::current_exe().map_err(|err| {
         AppError::new(
             ErrorKind::GitCommandFailed,
-            "Diff Trek could not work out where it is installed.",
+            i18n::t("error.locateInstallFailed"),
         )
         .with_detail(err.to_string())
     })?;
@@ -171,7 +159,7 @@ pub fn current_binary() -> AppResult<String> {
     path.to_str().map(str::to_owned).ok_or_else(|| {
         AppError::new(
             ErrorKind::GitCommandFailed,
-            "Diff Trek is installed at a path Git cannot store.",
+            i18n::t("error.unstorablePath"),
         )
         .with_detail(path.to_string_lossy().into_owned())
     })
@@ -205,7 +193,7 @@ pub fn install(binary: &str, target: &ConfigTarget) -> AppResult<AliasStatus> {
     if !output.status.success() {
         return Err(AppError::new(
             ErrorKind::GitCommandFailed,
-            "Git would not save the git dt command.",
+            i18n::tf("error.aliasSaveFailed", &[("command", "git dt")]),
         )
         .with_detail(String::from_utf8_lossy(&output.stderr).trim().to_owned()));
     }
@@ -232,7 +220,7 @@ fn read_alias(target: &ConfigTarget) -> AppResult<Option<String>> {
         Some(1) => Ok(None),
         _ => Err(AppError::new(
             ErrorKind::GitCommandFailed,
-            "Git could not read its configuration.",
+            i18n::t("error.gitConfigUnreadable"),
         )
         .with_detail(String::from_utf8_lossy(&output.stderr).trim().to_owned())),
     }
@@ -247,7 +235,7 @@ fn git(args: &[String]) -> AppResult<std::process::Output> {
         .map_err(|err| {
             AppError::new(
                 ErrorKind::GitUnavailable,
-                "Git could not be started. Check that it is installed and on your PATH.",
+                i18n::t("error.gitUnavailable"),
             )
             .with_detail(err.to_string())
         })

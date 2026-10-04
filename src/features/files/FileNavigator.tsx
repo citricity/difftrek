@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import { rich, useT } from '../../i18n/index.ts';
 import { filterByPath } from '../../lib/fileFilter.ts';
 import { splitPath, statusLetter } from '../../lib/format.ts';
 import { statusTitle, useWording } from '../diff/wording.ts';
@@ -46,6 +47,7 @@ export function FileNavigator({
   onSelect,
   onClose,
 }: Props) {
+  const t = useT();
   const wording = useWording();
   const dialog = useRef<HTMLDialogElement>(null);
   const listId = useId();
@@ -116,7 +118,7 @@ export function FileNavigator({
       ref={dialog}
       className={styles.dialog}
       style={position}
-      aria-label="Go to file"
+      aria-label={t('files.dialog')}
       onClose={onClose}
       // A click that lands on the dialog element itself, rather than anything
       // inside it, is a click on the backdrop.
@@ -132,8 +134,8 @@ export function FileNavigator({
           aria-expanded="true"
           aria-controls={listId}
           aria-activedescendant={matches.length > 0 ? optionId(highlighted) : undefined}
-          aria-label="Filter files"
-          placeholder={`Go to file (${files.length})`}
+          aria-label={t('files.filter')}
+          placeholder={t('files.filterPlaceholder', { count: files.length })}
           spellCheck={false}
           autoComplete="off"
           autoFocus
@@ -143,9 +145,14 @@ export function FileNavigator({
         />
 
         {matches.length === 0 ? (
-          <p className={styles.empty}>No files match</p>
+          <p className={styles.empty}>{t('files.noMatches')}</p>
         ) : (
-          <ul id={listId} className={styles.list} role="listbox" aria-label="Files">
+          <ul
+            id={listId}
+            className={styles.list}
+            role="listbox"
+            aria-label={t('files.list')}
+          >
             {matches.map((match, index) => {
               const { meta } = match.item;
               const isCurrent = meta.id === currentFileId;
@@ -177,7 +184,7 @@ export function FileNavigator({
                   <span
                     className={styles.status}
                     data-status={meta.status}
-                    title={statusTitle(wording, meta.status)}
+                    title={statusTitle(t, wording, meta.status)}
                   >
                     {statusLetter(meta.status)}
                   </span>
@@ -197,8 +204,12 @@ export function FileNavigator({
         )}
 
         <p className={styles.hint} aria-hidden="true">
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> move <kbd>↵</kbd> go <kbd>esc</kbd> close
+          {rich(t('files.hint'), {
+            up: <kbd>↑</kbd>,
+            down: <kbd>↓</kbd>,
+            enter: <kbd>↵</kbd>,
+            escape: <kbd>esc</kbd>,
+          })}
         </p>
       </div>
     </dialog>

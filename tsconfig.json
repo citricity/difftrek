@@ -27,6 +27,8 @@
     "exactOptionalPropertyTypes": false,
 
     "skipLibCheck": true,
+    /* The catalogues in `locales/` are plain JSON, shared with the Rust side. */
+    "resolveJsonModule": true,
     "types": ["vite/client", "node"],
 
     /* Mirrors the alias in vite.config.ts. */

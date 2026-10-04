@@ -1,4 +1,6 @@
 import { Columns2, Rows3 } from 'lucide-react';
+import { useT } from '../../i18n/index.ts';
+import type { MessageKey } from '../../i18n/index.ts';
 import type { ViewMode } from '../../types/index.ts';
 import styles from './NavigationControls.module.css';
 
@@ -7,9 +9,9 @@ interface Props {
   onChange: (mode: ViewMode) => void;
 }
 
-const MODES: Array<{ mode: ViewMode; label: string; Icon: typeof Rows3 }> = [
-  { mode: 'unified', label: 'Unified view', Icon: Rows3 },
-  { mode: 'split', label: 'Split view', Icon: Columns2 },
+const MODES: Array<{ mode: ViewMode; label: MessageKey; Icon: typeof Rows3 }> = [
+  { mode: 'unified', label: 'viewMode.unified', Icon: Rows3 },
+  { mode: 'split', label: 'viewMode.split', Icon: Columns2 },
 ];
 
 /**
@@ -21,8 +23,10 @@ const MODES: Array<{ mode: ViewMode; label: string; Icon: typeof Rows3 }> = [
  * window starts as is not.
  */
 export function ViewModeToggle({ value, onChange }: Props) {
+  const t = useT();
+
   return (
-    <div className={styles.group} role="group" aria-label="View mode">
+    <div className={styles.group} role="group" aria-label={t('viewMode.group')}>
       {MODES.map(({ mode, label, Icon }) => (
         <button
           key={mode}
@@ -31,9 +35,9 @@ export function ViewModeToggle({ value, onChange }: Props) {
             value === mode ? `${styles.button} ${styles.buttonActive}` : styles.button
           }
           onClick={() => onChange(mode)}
-          aria-label={label}
+          aria-label={t(label)}
           aria-pressed={value === mode}
-          title={label}
+          title={t(label)}
         >
           <Icon size={14} aria-hidden="true" />
         </button>

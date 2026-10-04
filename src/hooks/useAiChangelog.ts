@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useT } from '../i18n/index.ts';
 import { getAiChangelog } from '../services/backend.ts';
 import type { AiChangelog, LogicalChange, ResolvedHunk } from '../types/index.ts';
 
@@ -65,6 +66,7 @@ const EMPTY: AiChangelog | null = null;
 export function useAiChangelog(ready: boolean): AiChangelogData & {
   reload: () => void;
 } {
+  const t = useT();
   const [changelog, setChangelog] = useState<AiChangelog | null>(EMPTY);
   const [attempt, setAttempt] = useState(0);
 
@@ -113,8 +115,8 @@ export function useAiChangelog(ready: boolean): AiChangelogData & {
   );
 
   const describe = useCallback(
-    (id: string) => logicalChange(id)?.description ?? 'Logical change',
-    [logicalChange],
+    (id: string) => logicalChange(id)?.description ?? t('notes.logicalChange'),
+    [logicalChange, t],
   );
 
   const reload = useCallback(() => {

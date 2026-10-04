@@ -130,27 +130,23 @@ pub struct RepositoryInfo {
     /// What a file on only one side means here, which decides how the
     /// document words it.
     pub one_sided: OneSided,
-    /// What the two sides are called where the document names them.
-    pub side_names: SideNames,
+    /// What the two sides are called where the document names them, or
+    /// `None` for a repository's own Before and After.
+    ///
+    /// Those two are words, so the interface supplies them in whatever
+    /// language it is showing — including one chosen after this was sent. A
+    /// source with names of its own (a folder comparison's A and B) gives them
+    /// here, and they stand as given.
+    pub side_names: Option<SideNames>,
 }
 
-/// The names of the two sides, as the document shows them — on an image's
-/// two panes, and in "missing from …".
+/// A source's own names for its two sides, as the document shows them — on
+/// an image's two panes, and in "missing from …".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SideNames {
     pub original: String,
     pub working: String,
-}
-
-impl Default for SideNames {
-    /// A repository's two sides are two moments in the same tree.
-    fn default() -> Self {
-        Self {
-            original: "Before".to_string(),
-            working: "After".to_string(),
-        }
-    }
 }
 
 /// What a file present on only one side of a comparison means.

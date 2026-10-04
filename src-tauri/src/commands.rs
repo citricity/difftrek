@@ -5,6 +5,7 @@
 //! open source, return domain types. No presentation logic here, and no Git
 //! logic in the frontend.
 
+use difftrek_extension_api::i18n;
 use crate::ai_changelog::service::{self as changelog, ChangelogView};
 use crate::error::{AppError, AppResult, ErrorKind};
 use crate::git::model::{ChangedFile, FileDiff, RepositoryInfo};
@@ -13,6 +14,7 @@ use crate::git::repository::{self, Side, DEFAULT_MAX_DIFF_BYTES};
 use crate::git::revision::{self, Comparison};
 use crate::git::source::GitSource;
 use crate::launch::{self, launch_target, LaunchOptions};
+use crate::locale;
 use crate::settings::{self, Settings};
 use crate::state::AppState;
 use difftrek_extension_api::source::{ActiveSource, Source};
@@ -35,7 +37,7 @@ fn settings_path<R: Runtime>(app: &tauri::AppHandle<R>) -> std::path::PathBuf {
 /// is the shell that applies it: the frontend chooses a level and never
 /// touches the scaling itself. A platform that will not zoom is not a reason
 /// to fail a save, so the error is reported and swallowed.
-fn apply_zoom<R: Runtime>(app: &tauri::AppHandle<R>, settings: Settings) {
+fn apply_zoom<R: Runtime>(app: &tauri::AppHandle<R>, settings: &Settings) {
     let Some(webview) = app.get_webview_window("main") else {
         return;
     };
@@ -49,7 +51,12 @@ fn apply_zoom<R: Runtime>(app: &tauri::AppHandle<R>, settings: Settings) {
 /// that a scaled interface opens scaled rather than snapping to size a moment
 /// after it appears.
 pub fn apply_stored_zoom<R: Runtime>(app: &tauri::AppHandle<R>) {
-    apply_zoom(app, settings::load_from(&settings_path(app)));
+    apply_zoom(app, &settings::load_from(&settings_path(app)));
+}
+
+/// The settings as stored, for setup to read before the window exists.
+pub fn stored_settings<R: Runtime>(app: &tauri::AppHandle<R>) -> Settings {
+    settings::load_from(&settings_path(app))
 }
 
 /// Current preferences.
@@ -71,15 +78,32 @@ pub fn set_settings<R: Runtime>(
     settings: Settings,
 ) -> AppResult<Settings> {
     let path = settings_path(&app);
-    settings::save_to(&path, settings)?;
+    settings::save_to(&path, &settings)?;
 
     // Storing the zoom is also applying it: the level and the size of what is
     // on screen are the same fact, and letting the frontend set one without
     // the other would let them drift.
     let stored = settings.sanitised();
-    apply_zoom(&app, stored);
+    apply_zoom(&app, &stored);
+
+    // The same goes for the language, which the shell speaks too: the menu
+    // bar is rebuilt in it, and errors from here on are worded in it.
+    if locale::apply(&stored.language) {
+        if let Err(err) = crate::menu::rebuild(&app) {
+            eprintln!("[difftrek] could not rebuild the menu: {err}");
+        }
+    }
 
     Ok(stored)
+}
+
+/// The operating system's preferred languages, most preferred first.
+///
+/// The webview's own `navigator.languages` is not a substitute: on macOS it
+/// reports the languages the app bundle declares, not the user's.
+#[tauri::command]
+pub fn get_system_locales() -> Vec<String> {
+    locale::system_locales()
 }
 
 /// How the app was launched.
@@ -187,7 +211,7 @@ pub fn get_file_contents(
     if meta.binary {
         return Err(AppError::new(
             ErrorKind::BinaryFile,
-            format!("{path} is a binary file."),
+            i18n::tf("error.binaryFile", &[("path", &path)]),
         ));
     }
 

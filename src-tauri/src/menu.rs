@@ -1,22 +1,29 @@
 //! The application menu.
 //!
-//! Tauri installs `Menu::default()` on macOS by default when the builder is
-//! given no menu of its own, which is why Diff Trek already has a "Diff Trek"
-//! menu with About, Services, Hide and Quit, an Edit menu that makes ⌘C work in
-//! the diff, and Window and View menus. None of that is ours.
+//! On macOS, Tauri would install `Menu::default()` when given no menu of its
+//! own: the "Diff Trek" menu with About, Services, Hide and Quit, an Edit menu
+//! that makes ⌘C work in the diff, and File, View, Window and Help. Its labels
+//! are English and fixed, though, and Diff Trek speaks the user's language —
+//! so this builds the same menu itself, every label from the shared catalogue
+//! (`locales/*.json`), and builds it again when the language changes.
 //!
-//! What the default has no way to provide is Settings. `PredefinedMenuItem`
-//! covers the items whose behaviour the OS owns — about, services, hide, quit,
-//! the clipboard, fullscreen — and a settings item is not one of them, because
-//! only the app knows what it should open. So this adds a normal menu item to
-//! the menu that is already there, and relays the click to the webview as an
-//! event.
+//! The structure is the default's, item for item (see `Menu::default` in
+//! `tauri/src/menu/menu.rs`), plus what the default has no way to provide.
+//! `PredefinedMenuItem` covers the items whose behaviour the OS owns — about,
+//! services, hide, quit, the clipboard, fullscreen — and keeps that behaviour
+//! whatever the label says. Settings is not one of them, because only the app
+//! knows what it should open, so it is a normal item that relays the click to
+//! the webview as an event; likewise installing `git dt` and the zoom items.
+//!
+//! The Window and Help submenus carry Tauri's well-known ids, which is what
+//! makes `set_menu` hand them to AppKit as the windows and help menus (it
+//! looks them up by id), so the system's own additions still appear in them.
 //!
 //! The item says "Settings…", not "Preferences…": macOS 13 renamed it in the
 //! Human Interface Guidelines and the system apps followed.
 //!
-//! Non-macOS platforms get no default menu from Tauri at all, so this does
-//! nothing there and the toolbar button is the way in.
+//! Non-macOS platforms get no menu bar from Tauri at all, so this does nothing
+//! there and the toolbar button is the way in.
 
 use tauri::Runtime;
 
@@ -56,98 +63,144 @@ pub fn zoom_direction(id: &tauri::menu::MenuId) -> Option<&'static str> {
     }
 }
 
-#[cfg(target_os = "macos")]
-pub fn install_app_items<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    // `menu()` is inherent on `AppHandle`, not a `Manager` method, so no trait
-    // needs importing here — unlike `commands.rs`, which uses `Manager::path`.
-    use tauri::menu::{MenuItem, MenuItemKind, PredefinedMenuItem};
-
-    // The first submenu is the application menu on macOS. If there is no menu
-    // at all — a default Tauri stopped applying, say — there is nothing to add
-    // to, and the toolbar button still works.
-    let Some(menu) = app.menu() else {
-        return Ok(());
+/// The whole menu bar, in the active language.
+///
+/// Only macOS installs it, but it compiles everywhere — the constructors are
+/// cross-platform — so a Linux build or CI run still type-checks it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub fn build<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
+    use difftrek_extension_api::i18n::{t, tf};
+    use tauri::menu::{
+        AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+        WINDOW_SUBMENU_ID,
     };
 
-    let Some(MenuItemKind::Submenu(application)) = menu.items()?.into_iter().next() else {
-        return Ok(());
+    let package = app.package_info();
+    let config = app.config();
+    let name = package.name.clone();
+    let named = |key: &str| tf(key, &[("app", &name)]);
+
+    let about = AboutMetadata {
+        name: Some(name.clone()),
+        version: Some(package.version.to_string()),
+        copyright: config.bundle.copyright.clone(),
+        authors: config.bundle.publisher.clone().map(|publisher| vec![publisher]),
+        ..Default::default()
     };
 
-    let settings =
-        MenuItem::with_id(app, SETTINGS_ID, "Settings…", true, Some("CmdOrCtrl+,"))?;
+    let settings = MenuItem::with_id(
+        app,
+        SETTINGS_ID,
+        t("menu.settings"),
+        true,
+        Some("CmdOrCtrl+,"),
+    )?;
 
     // No shortcut: installing a command is a once-ever action.
     let git_alias = MenuItem::with_id(
         app,
         GIT_ALIAS_ID,
-        "Install \u{2018}git dt\u{2019} Command…",
+        tf("menu.installGitAlias", &[("command", "git dt")]),
         true,
         None::<&str>,
     )?;
 
-    // Index 2 is immediately after About and its separator, which is where
-    // macOS puts Settings and where the muscle memory expects it. The command
-    // item follows it in the same group, as VS Code's "Install 'code' command"
-    // sits with its app-level items. The separator after them keeps Services
-    // in its own group.
-    application.insert_items(
-        &[&settings, &git_alias, &PredefinedMenuItem::separator(app)?],
-        2,
+    // Settings straight after About and its separator, which is where macOS
+    // puts it and where the muscle memory expects it. The command item follows
+    // it in the same group, as VS Code's "Install 'code' command" sits with
+    // its app-level items.
+    let application = Submenu::with_items(
+        app,
+        &name,
+        true,
+        &[
+            &PredefinedMenuItem::about(app, Some(&named("menu.about")), Some(about))?,
+            &PredefinedMenuItem::separator(app)?,
+            &settings,
+            &git_alias,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, Some(&t("menu.services")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, Some(&named("menu.hide")))?,
+            &PredefinedMenuItem::hide_others(app, Some(&t("menu.hideOthers")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::quit(app, Some(&named("menu.quit")))?,
+        ],
     )?;
 
-    install_view_items(app)
+    let file = Submenu::with_items(
+        app,
+        t("menu.file"),
+        true,
+        &[&PredefinedMenuItem::close_window(app, Some(&t("menu.closeWindow")))?],
+    )?;
+
+    let edit = Submenu::with_items(
+        app,
+        t("menu.edit"),
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, Some(&t("menu.undo")))?,
+            &PredefinedMenuItem::redo(app, Some(&t("menu.redo")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, Some(&t("menu.cut")))?,
+            &PredefinedMenuItem::copy(app, Some(&t("menu.copy")))?,
+            &PredefinedMenuItem::paste(app, Some(&t("menu.paste")))?,
+            &PredefinedMenuItem::select_all(app, Some(&t("menu.selectAll")))?,
+        ],
+    )?;
+
+    // Zoom In, Zoom Out and Actual Size, above Fullscreen with a separator
+    // under them: the grouping a browser's View menu has.
+    //
+    // None of this is what makes the keystrokes work: the webview handles them
+    // itself, which is the only way they can work on the platforms that get no
+    // menu at all, and the only way ⌘⇧+ can work anywhere, since a menu key
+    // equivalent matches one keystroke and that is a different one. The items
+    // are here so the commands can be found without knowing them, and so macOS
+    // shows the shortcut beside the name. ⌘= rather than ⌘+, because = is the
+    // key actually under the finger: shifting it is what makes a +, and the
+    // webview picks that up itself.
+    let view = Submenu::with_items(
+        app,
+        t("menu.view"),
+        true,
+        &[
+            &zoom_item(app, ZOOM_IN_ID, &t("menu.zoomIn"), "CmdOrCtrl+Equal")?,
+            &zoom_item(app, ZOOM_OUT_ID, &t("menu.zoomOut"), "CmdOrCtrl+Minus")?,
+            &zoom_item(app, ZOOM_RESET_ID, &t("menu.actualSize"), "CmdOrCtrl+Digit0")?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::fullscreen(app, Some(&t("menu.fullScreen")))?,
+        ],
+    )?;
+
+    let window = Submenu::with_id_and_items(
+        app,
+        WINDOW_SUBMENU_ID,
+        t("menu.window"),
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, Some(&t("menu.minimise")))?,
+            &PredefinedMenuItem::maximize(app, Some(&t("menu.zoomWindow")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::close_window(app, Some(&t("menu.closeWindow")))?,
+        ],
+    )?;
+
+    let help = Submenu::with_id_and_items(app, HELP_SUBMENU_ID, t("menu.help"), true, &[])?;
+
+    Menu::with_items(app, &[&application, &file, &edit, &view, &window, &help])
 }
 
-/// Zoom In, Zoom Out and Actual Size, in the View menu the default already
-/// provides — above Fullscreen, which is where a browser puts them.
-///
-/// None of this is what makes the keystrokes work: the webview handles them
-/// itself, which is the only way they can work on the platforms that get no
-/// menu at all, and the only way ⌘⇧+ can work anywhere, since a menu key
-/// equivalent matches one keystroke and that is a different one. The items are
-/// here so the commands can be found without knowing them, and so macOS shows
-/// the shortcut beside the name.
+/// Replaces the menu bar with one in the language now active.
 #[cfg(target_os = "macos")]
-fn install_view_items<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    use tauri::menu::{MenuItemKind, PredefinedMenuItem};
+pub fn rebuild<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()> {
+    app.set_menu(build(app)?)?;
+    Ok(())
+}
 
-    let Some(menu) = app.menu() else {
-        return Ok(());
-    };
-
-    // Found by name: the default menu is Tauri's, and its View submenu is not
-    // at an index worth relying on. If it is ever not there at all, the
-    // keystrokes still work and there is simply nowhere to put the items.
-    let view = menu.items()?.into_iter().find_map(|item| match item {
-        MenuItemKind::Submenu(submenu) => match submenu.text() {
-            Ok(text) if text == "View" => Some(submenu),
-            _ => None,
-        },
-        _ => None,
-    });
-
-    let Some(view) = view else {
-        return Ok(());
-    };
-
-    // ⌘= rather than ⌘+, because = is the key actually under the finger:
-    // shifting it is what makes a +, and the webview picks that up itself.
-    let zoom_in = zoom_item(app, ZOOM_IN_ID, "Zoom In", "CmdOrCtrl+Equal")?;
-    let zoom_out = zoom_item(app, ZOOM_OUT_ID, "Zoom Out", "CmdOrCtrl+Minus")?;
-    let actual_size = zoom_item(app, ZOOM_RESET_ID, "Actual Size", "CmdOrCtrl+Digit0")?;
-
-    // At the top, above Fullscreen, with a separator under them: the grouping
-    // a browser's View menu has.
-    view.insert_items(
-        &[
-            &zoom_in,
-            &zoom_out,
-            &actual_size,
-            &PredefinedMenuItem::separator(app)?,
-        ],
-        0,
-    )?;
-
+#[cfg(not(target_os = "macos"))]
+pub fn rebuild<R: Runtime>(_app: &tauri::AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
@@ -156,7 +209,7 @@ fn install_view_items<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<()
 /// An accelerator is a string parsed at runtime, and one the menu library will
 /// not parse must not be what stops Diff Trek starting: without it the item
 /// still works from the menu, and the webview still sees the keystroke.
-#[cfg(target_os = "macos")]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn zoom_item<R: Runtime>(
     app: &tauri::AppHandle<R>,
     id: &str,
@@ -172,9 +225,4 @@ fn zoom_item<R: Runtime>(
             MenuItem::with_id(app, id, text, true, None::<&str>)
         }
     }
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn install_app_items<R: Runtime>(_app: &tauri::AppHandle<R>) -> tauri::Result<()> {
-    Ok(())
 }

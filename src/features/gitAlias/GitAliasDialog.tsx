@@ -6,6 +6,7 @@ import {
   installGitAlias,
   onGitAliasRequested,
 } from '../../services/backend.ts';
+import { rich, useT } from '../../i18n/index.ts';
 import { AppError } from '../../types/index.ts';
 import type { GitAliasStatus } from '../../types/index.ts';
 import styles from './GitAliasDialog.module.css';
@@ -43,6 +44,7 @@ interface Props {
  */
 export function GitAliasDialog({ ref, onStatusChange }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const t = useT();
   const [stage, setStage] = useState<Stage>({ name: 'closed' });
   const open = stage.name !== 'closed';
 
@@ -146,6 +148,8 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
     );
   }, []);
 
+  const gitDt = <code>git dt</code>;
+
   return (
     <dialog
       ref={dialog}
@@ -155,36 +159,39 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
     >
       <header className={styles.header}>
         <h2 id="git-alias-title" className={styles.title}>
-          Install <code>git dt</code> command
+          {rich(t('gitAlias.title'), { command: gitDt })}
         </h2>
         <button
           type="button"
           className={styles.close}
           onClick={close}
-          aria-label="Close"
+          aria-label={t('gitAlias.close')}
         >
           <X size={14} aria-hidden="true" />
         </button>
       </header>
 
       <div className={styles.body}>
-        {stage.name === 'loading' && <p className={styles.muted}>Checking Git…</p>}
+        {stage.name === 'loading' && (
+          <p className={styles.muted}>{t('gitAlias.checking')}</p>
+        )}
 
         {stage.name === 'confirm' && (
           <>
             <p>
-              This adds a Git alias to your global Git configuration, so that running{' '}
-              <code>git dt</code> in any repository opens its unstaged changes in Diff
-              Trek, and <code>git dt main...HEAD</code> opens a commit or range.
+              {rich(t('gitAlias.explanation'), {
+                command: gitDt,
+                rangeExample: <code>git dt main...HEAD</code>,
+              })}
             </p>
 
-            <p className={styles.label}>Diff Trek will run:</p>
+            <p className={styles.label}>{t('gitAlias.willRun')}</p>
             <pre className={styles.code}>{stage.status.command}</pre>
 
             {stage.status.existing !== null && (
               <>
                 <p className={styles.label}>
-                  This replaces your current <code>git dt</code> alias:
+                  {rich(t('gitAlias.replaces'), { command: gitDt })}
                 </p>
                 <pre className={styles.code}>{stage.status.existing}</pre>
               </>
@@ -201,20 +208,16 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
         {stage.name === 'done' && (
           <>
             <p className={styles.success}>
-              {stage.already ? (
-                <>
-                  <code>git dt</code> is already set up for this copy of Diff Trek.
-                </>
-              ) : (
-                <>
-                  Done. <code>git dt</code> is installed.
-                </>
-              )}
+              {rich(t(stage.already ? 'gitAlias.alreadySetUp' : 'gitAlias.installed'), {
+                command: gitDt,
+              })}
             </p>
             <p>
-              In any Git repository, run <code>git dt</code> to see its unstaged changes
-              in Diff Trek. Add a commit or range to see that instead, as in{' '}
-              <code>git dt HEAD~1</code> or <code>git dt main...HEAD</code>.
+              {rich(t('gitAlias.usage'), {
+                command: gitDt,
+                commitExample: <code>git dt HEAD~1</code>,
+                rangeExample: <code>git dt main...HEAD</code>,
+              })}
             </p>
             {stage.status.warning !== null && (
               <p className={styles.warning} role="note">
@@ -240,7 +243,7 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
               onClick={close}
               disabled={stage.installing}
             >
-              Cancel
+              {t('gitAlias.cancel')}
             </button>
             <button
               type="button"
@@ -249,20 +252,20 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
               disabled={stage.installing}
               autoFocus
             >
-              {stage.installing ? 'Installing…' : 'Install'}
+              {t(stage.installing ? 'gitAlias.installing' : 'gitAlias.install')}
             </button>
           </>
         ) : stage.name === 'failed' ? (
           <>
             <button type="button" className={styles.button} onClick={close}>
-              Close
+              {t('gitAlias.close')}
             </button>
             <button
               type="button"
               className={`${styles.button} ${styles.primary}`}
               onClick={start}
             >
-              Try again
+              {t('gitAlias.tryAgain')}
             </button>
           </>
         ) : (
@@ -272,7 +275,7 @@ export function GitAliasDialog({ ref, onStatusChange }: Props) {
             onClick={close}
             disabled={stage.name === 'loading'}
           >
-            Close
+            {t('gitAlias.close')}
           </button>
         )}
       </footer>

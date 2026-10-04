@@ -3,6 +3,7 @@
 //! Git failures are classified here rather than leaking raw stderr to the UI:
 //! the frontend switches on `kind`, shows `message`, and logs `detail`.
 
+use crate::i18n;
 use serde::Serialize;
 use std::fmt;
 
@@ -56,16 +57,13 @@ impl AppError {
     }
 
     pub fn not_a_repository() -> Self {
-        Self::new(
-            ErrorKind::NotARepository,
-            "This directory is not inside a Git repository.",
-        )
+        Self::new(ErrorKind::NotARepository, i18n::t("error.notARepository"))
     }
 
     pub fn file_not_found(path: &str) -> Self {
         Self::new(
             ErrorKind::FileNotFound,
-            format!("{path} is no longer part of the working tree diff."),
+            i18n::tf("error.fileNotFound", &[("path", path)]),
         )
     }
 
@@ -85,12 +83,12 @@ impl AppError {
             ErrorKind::GitCommandFailed
         };
 
-        let message = match kind {
-            ErrorKind::NotARepository => "This directory is not inside a Git repository.",
-            ErrorKind::PermissionDenied => "Diff Trek does not have permission to read this file.",
-            ErrorKind::EmptyRepository => "This repository has no commits yet.",
-            _ => "Git reported an error.",
-        };
+        let message = i18n::t(match kind {
+            ErrorKind::NotARepository => "error.notARepository",
+            ErrorKind::PermissionDenied => "error.permissionDenied",
+            ErrorKind::EmptyRepository => "error.emptyRepository",
+            _ => "error.gitFailed",
+        });
 
         Self::new(kind, message).with_detail(stderr.trim())
     }

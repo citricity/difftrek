@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { useT } from '../../i18n/index.ts';
 import type { DiffLine } from '../../types/index.ts';
 import type { LineRun } from '../../lib/runs.ts';
 import { wrapRuns } from '../../lib/wrap.ts';
@@ -56,6 +57,7 @@ function Pane({
   offset: number;
   notes?: ReactNode;
 }) {
+  const t = useT();
   if (entry === null) {
     // Not "empty" but "absent": there is no line here to face the other side,
     // and that is worth saying visually rather than leaving a gap.
@@ -121,7 +123,7 @@ function Pane({
             )}
 
             {line.noNewline && index === wrapped.length - 1 && (
-              <span className={styles.noNewline}>no newline at end of file</span>
+              <span className={styles.noNewline}>{t('rows.noNewline')}</span>
             )}
           </span>
         </span>

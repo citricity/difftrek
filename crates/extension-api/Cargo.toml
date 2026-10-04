@@ -10,3 +10,4 @@ publish = false
 # implements are plain Rust, so they compile and test anywhere.
 [dependencies]
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"

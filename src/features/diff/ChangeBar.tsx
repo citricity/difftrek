@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { laneColour } from '../../lib/noteMarkers.ts';
+import { useT } from '../../i18n/index.ts';
 import styles from './ChangeBar.module.css';
 
 interface Props {
@@ -79,6 +80,7 @@ export function ChangeBar({
   onPreviousHunk,
   onToggleFocus,
 }: Props) {
+  const t = useT();
   const lane = label === null ? undefined : laneColour(label);
 
   return (
@@ -87,8 +89,8 @@ export function ChangeBar({
         type="button"
         className={styles.contents}
         onClick={onOpenContents}
-        title="All logical changes"
-        aria-label="All logical changes"
+        title={t('changeBar.allLogicalChanges')}
+        aria-label={t('changeBar.allLogicalChanges')}
         aria-haspopup="dialog"
       >
         <span
@@ -103,7 +105,8 @@ export function ChangeBar({
 
       <div className={styles.walk}>
         <span className={styles.position} aria-live="polite">
-          <span className={styles.word}>Change</span> {position ?? '–'} / {total}
+          <span className={styles.word}>{t('changeBar.change')}</span> {position ?? '–'}{' '}
+          / {total}
         </span>
 
         <div className={styles.group}>
@@ -112,8 +115,8 @@ export function ChangeBar({
             className={styles.button}
             onClick={onPrevious}
             disabled={!canGoPrevious}
-            title="Previous logical change (Shift+P)"
-            aria-label="Previous logical change"
+            title={t('changeBar.previousChangeTitle')}
+            aria-label={t('changeBar.previousChange')}
           >
             <ChevronsUp size={14} aria-hidden="true" />
           </button>
@@ -123,8 +126,8 @@ export function ChangeBar({
             className={styles.button}
             onClick={onNext}
             disabled={!canGoNext}
-            title="Next logical change (Shift+N)"
-            aria-label="Next logical change"
+            title={t('changeBar.nextChangeTitle')}
+            aria-label={t('changeBar.nextChange')}
           >
             <ChevronsDown size={14} aria-hidden="true" />
           </button>
@@ -137,15 +140,15 @@ export function ChangeBar({
       {label === null ? (
         <span className={`${styles.description} ${styles.muted}`}>
           {onHunk
-            ? 'Not part of a logical change'
-            : `${total} logical change${total === 1 ? '' : 's'}`}
+            ? t('changeBar.notInChange')
+            : t('changeBar.changeCount', { count: total })}
         </span>
       ) : (
         <button
           type="button"
           className={`${styles.description} ${styles.descriptionButton}`}
           onClick={onOpenChange}
-          title="Read the whole description"
+          title={t('changeBar.readDescription')}
           aria-haspopup="dialog"
         >
           {description}
@@ -154,8 +157,8 @@ export function ChangeBar({
 
       <div className={styles.walk}>
         <span className={styles.position} aria-live="polite">
-          <span className={styles.word}>Hunk</span> {hunkPosition ?? '–'} /{' '}
-          {label === null ? '–' : hunkTotal}
+          <span className={styles.word}>{t('changeBar.hunk')}</span>{' '}
+          {hunkPosition ?? '–'} / {label === null ? '–' : hunkTotal}
         </span>
 
         <div className={styles.group}>
@@ -164,8 +167,8 @@ export function ChangeBar({
             className={styles.button}
             onClick={onPreviousHunk}
             disabled={!canGoPreviousHunk}
-            title="Previous hunk in this change ([)"
-            aria-label="Previous hunk in this change"
+            title={t('changeBar.previousHunkTitle')}
+            aria-label={t('changeBar.previousHunk')}
           >
             <ChevronUp size={14} aria-hidden="true" />
           </button>
@@ -175,8 +178,8 @@ export function ChangeBar({
             className={styles.button}
             onClick={onNextHunk}
             disabled={!canGoNextHunk}
-            title="Next hunk in this change (])"
-            aria-label="Next hunk in this change"
+            title={t('changeBar.nextHunkTitle')}
+            aria-label={t('changeBar.nextHunk')}
           >
             <ChevronDown size={14} aria-hidden="true" />
           </button>
@@ -192,12 +195,8 @@ export function ChangeBar({
         // The arrows beside it already walk this change; what focusing adds is
         // the rest of the window — the toolbar's arrows, n / p and following
         // the scroll — so that is what the tip says.
-        title={
-          focused
-            ? 'Stop focusing: the toolbar arrows and n / p step through every hunk again (Escape)'
-            : 'Focus this change: the toolbar arrows, n / p and scrolling keep to its hunks'
-        }
-        aria-label={focused ? 'Stop focusing this change' : 'Focus this change'}
+        title={focused ? t('changeBar.stopFocusingTitle') : t('changeBar.focusTitle')}
+        aria-label={focused ? t('changeBar.stopFocusing') : t('changeBar.focus')}
       >
         <Crosshair size={13} aria-hidden="true" />
       </button>

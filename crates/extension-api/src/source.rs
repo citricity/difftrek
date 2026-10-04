@@ -29,7 +29,7 @@ impl Side {
             "original" => Ok(Self::Original),
             "working" => Ok(Self::Working),
             other => Err(
-                AppError::new(ErrorKind::InvalidDiff, "Unknown file side requested.")
+                AppError::new(ErrorKind::InvalidDiff, crate::i18n::t("error.unknownSide"))
                     .with_detail(format!("side={other}")),
             ),
         }
