@@ -33,8 +33,18 @@ pub struct AppMenuItem {
 impl AppMenuItem {
     /// The menu id: namespaced, so no extension's item can collide with the
     /// core's ids or another extension's.
+    ///
+    /// The extension's id is preceded by its length because neither name is
+    /// barred from containing `:`. Joined plainly, `("a", "b:c")` and
+    /// `("a:b", "c")` would share an id, and the second would be dropped as a
+    /// duplicate with its clicks sent to the first.
     pub fn menu_id(&self) -> String {
-        format!("{MENU_ID_PREFIX}{}:{}", self.extension, self.item)
+        format!(
+            "{MENU_ID_PREFIX}{}:{}:{}",
+            self.extension.len(),
+            self.extension,
+            self.item
+        )
     }
 }
 
@@ -87,7 +97,13 @@ mod tests {
     fn an_added_item_is_found_by_its_menu_id() {
         add_app_menu_item("test-a", "enter", "testA.enter");
 
-        let item = app_menu_item("extension:test-a:enter").expect("found");
+        let item = app_menu_item(&AppMenuItem {
+            extension: "test-a".into(),
+            item: "enter".into(),
+            label_key: String::new(),
+        }
+        .menu_id())
+        .expect("found");
         assert_eq!(item.extension, "test-a");
         assert_eq!(item.item, "enter");
         assert_eq!(item.label_key, "testA.enter");
@@ -107,10 +123,29 @@ mod tests {
     }
 
     #[test]
+    fn names_containing_a_colon_never_share_an_id() {
+        add_app_menu_item("test-d", "x:y", "testD.first");
+        add_app_menu_item("test-d:x", "y", "testD.second");
+
+        let first = app_menu_items()
+            .into_iter()
+            .find(|item| item.label_key == "testD.first")
+            .expect("first kept");
+        let second = app_menu_items()
+            .into_iter()
+            .find(|item| item.label_key == "testD.second")
+            .expect("second kept, not taken for a duplicate");
+        assert_ne!(first.menu_id(), second.menu_id());
+
+        assert_eq!(app_menu_item(&first.menu_id()), Some(first.clone()));
+        assert_eq!(app_menu_item(&second.menu_id()), Some(second.clone()));
+    }
+
+    #[test]
     fn core_ids_are_never_mistaken_for_an_extensions() {
         add_app_menu_item("test-c", "settings", "testC.settings");
 
         assert_eq!(app_menu_item("settings"), None);
-        assert_eq!(app_menu_item("extension:test-c:other"), None);
+        assert_eq!(app_menu_item("extension:6:test-c:other"), None);
     }
 }

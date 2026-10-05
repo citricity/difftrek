@@ -8,10 +8,17 @@ import type { ExtensionMenuItem } from '../services/backend.ts';
 /** What the shell would call when a menu item is chosen in this window. */
 let chooseMenuItem: ((chosen: ExtensionMenuItem) => void) | null = null;
 
+/** Set to make the next menu subscription fail, as a missing permission would. */
+let menuSubscriptionFails = false;
+
 vi.mock('../services/backend.ts', () => ({
   invokeExtension: () => Promise.resolve(undefined),
   onFileDrop: () => Promise.resolve(() => undefined),
   onExtensionMenuItem: (handler: (chosen: ExtensionMenuItem) => void) => {
+    if (menuSubscriptionFails) {
+      menuSubscriptionFails = false;
+      return Promise.reject(new Error('event.listen not allowed'));
+    }
     chooseMenuItem = handler;
     return Promise.resolve(() => undefined);
   },
@@ -50,6 +57,22 @@ describe('ExtensionApps', () => {
     act(() => chooseMenuItem?.({ extension: 'licence', item: 'remove' }));
 
     expect(screen.getByText('licence chosen 1')).toBeInTheDocument();
+  });
+
+  it('says why, rather than rejecting unhandled, when a menu subscription fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    menuSubscriptionFails = true;
+
+    render(<ExtensionApps onReload={() => undefined} extensions={[licence]} />);
+
+    await vi.waitFor(() =>
+      expect(logged).toHaveBeenCalledWith(
+        '[difftrek] could not subscribe to the licence menu item enter',
+        expect.any(Error),
+      ),
+    );
+    expect(screen.getByText('licence chosen 0')).toBeInTheDocument();
+    logged.mockRestore();
   });
 
   it('renders nothing for extensions without an app component', () => {
