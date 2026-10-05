@@ -128,7 +128,7 @@ export function NotARepository({ alongside = false }: Props) {
       {alias === 'installed' && (
         <>
           <GitCompare className={styles.icon} size={22} aria-hidden="true" />
-          <h1 className={styles.title}>{t('gitAlias.screen.openFromGit.title')}</h1>
+          <h2 className={styles.title}>{t('gitAlias.screen.openFromGit.title')}</h2>
           <p className={styles.message}>
             {rich(t('gitAlias.screen.openFromGit.message'), {
               cd: <code>cd</code>,
@@ -146,9 +146,9 @@ export function NotARepository({ alongside = false }: Props) {
       {(alias === 'missing' || alias === 'other') && (
         <>
           <SquareTerminal className={styles.icon} size={22} aria-hidden="true" />
-          <h1 className={styles.title}>
+          <h2 className={styles.title}>
             {rich(t(`gitAlias.screen.${action}.title`), { command: gitDt })}
-          </h1>
+          </h2>
           <p className={styles.message}>
             {rich(t(`gitAlias.screen.${action}.message`), { command: gitDt })}
           </p>

@@ -1,7 +1,9 @@
 import { Component, useMemo } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { useT } from '../i18n/index.ts';
 import { invokeExtension, onFileDrop } from '../services/backend.ts';
-import type { Extension, ExtensionHost, Mode } from './api.ts';
+import type { Extension, ExtensionHost, LandingHeading, Mode } from './api.ts';
+import { LandingHero } from './LandingHero.tsx';
 import { extensions as compiledIn, landingExtensions } from './registry.ts';
 import styles from './Landing.module.css';
 
@@ -22,19 +24,41 @@ interface Props {
 /**
  * A landing screen: what Diff Trek shows when there is no diff to show yet.
  *
- * Extensions contribute panels to it — comparing two folders, say — above the
- * core's own guidance. With none compiled in, this is exactly the core's
- * screen, unchanged.
+ * A band across the top names the screen, and everything else sits beneath
+ * it: extensions' panels — comparing two folders, say — then the core's own
+ * guidance. The first panel's heading is the band's, as that panel is what
+ * the screen is for; with no panel, or none that names the screen, the band
+ * says what Diff Trek itself is for.
  */
 export function Landing({ mode, onReload, children, extensions = compiledIn }: Props) {
-  if (landingExtensions(mode, extensions).length === 0) return children;
+  const panels = landingExtensions(mode, extensions);
+  const naming = panels[0]?.landing?.useHeading;
 
   return (
     <div className={styles.screen}>
-      <LandingPanels mode={mode} onReload={onReload} extensions={extensions} />
-      {children}
+      {naming === undefined ? (
+        <CoreHeading />
+      ) : (
+        <ExtensionBoundary id={panels[0].id} fallback={<CoreHeading />}>
+          <ExtensionHeading useHeading={naming} />
+        </ExtensionBoundary>
+      )}
+      <div className={styles.body}>
+        <LandingPanels mode={mode} onReload={onReload} extensions={extensions} />
+        {children}
+      </div>
     </div>
   );
+}
+
+function CoreHeading() {
+  const t = useT();
+  return <LandingHero title={t('landing.title')} intro={t('landing.intro')} />;
+}
+
+function ExtensionHeading({ useHeading }: { useHeading: () => LandingHeading }) {
+  const { title, intro } = useHeading();
+  return <LandingHero title={title} intro={intro} />;
 }
 
 /**
@@ -104,11 +128,17 @@ function LandingPanel({
  * Keeps one extension's failure to itself.
  *
  * An extension is never load-bearing: if its panel throws while rendering, the
- * panel disappears and the rest of the screen carries on. React only offers
+ * panel disappears — or makes way for the core's own, where there is one —
+ * and the rest of the screen carries on. React only offers
  * this as a class component, which is the one reason there is one here.
  */
 class ExtensionBoundary extends Component<
-  { id: string; children: ReactNode },
+  {
+    id: string;
+    children: ReactNode;
+    /** Shown in its place if it fails; nothing by default. */
+    fallback?: ReactNode;
+  },
   { failed: boolean }
 > {
   override state = { failed: false };
@@ -126,6 +156,6 @@ class ExtensionBoundary extends Component<
   }
 
   override render() {
-    return this.state.failed ? null : this.props.children;
+    return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
   }
 }

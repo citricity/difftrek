@@ -205,6 +205,8 @@
   "gitAlias.screen.alongside.update.message": "Abre otra copia de Diff Trek.",
   "gitAlias.screen.alongside.install.button": "Instalar…",
   "gitAlias.screen.alongside.update.button": "Actualizar…",
+  "landing.title": "Cada cambio, un solo documento",
+  "landing.intro": "Todos los cambios en una única vista continua, recorridos uno a uno, de un archivo a otro.",
   "startup.title.notARepository": "No es un repositorio de Git",
   "startup.title.gitUnavailable": "No se encuentra Git",
   "startup.title.emptyRepository": "No hay nada con lo que comparar",

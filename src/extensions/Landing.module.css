@@ -1,9 +1,17 @@
+/* The band takes the full width at the top; the rest of the screen is
+   padded beneath it. The whole screen scrolls together, band included. */
 .screen {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  overflow: auto;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   align-items: center;
   gap: 28px;
-  height: 100%;
-  padding: 40px 32px;
-  overflow: auto;
+  padding: 32px;
 }

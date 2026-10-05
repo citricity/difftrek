@@ -37,6 +37,36 @@ extensions/<id>/
 An extension is never load-bearing: a panel that throws is removed, and the
 rest of the app carries on.
 
+## The landing screen
+
+Outside a repository Diff Trek shows a landing screen: a coloured band across
+the top holding the screen's title, then extensions' panels, then the core's
+own guidance. A panel contributes with `landing: { modes, component }`.
+
+The **first** panel on the screen can also name it, with `useHeading`: a hook
+returning `{ title, intro? }`, so it can translate with `useT`. The core draws
+these large in the band; the panel itself then starts with its controls, not a
+heading of its own. Without `useHeading`, or if it throws, the band keeps Diff
+Trek's own heading.
+
+```tsx
+export default defineExtension({
+  id: 'dir-compare',
+  landing: {
+    modes: ['none'],
+    component: CompareFolders,
+    useHeading: () => {
+      const t = useT<Key>();
+      return { title: t('dirCompare.title'), intro: t('dirCompare.intro') };
+    },
+  },
+});
+```
+
+Where an extension tells the two sides of a comparison apart by colour, it
+uses the core's `--side-a` and `--side-b` (bare RGB channels:
+`rgb(var(--side-a) / 12%)`), so its colours always match the band's.
+
 ## Words
 
 An extension's words go in `extensions/<id>/locales/<tag>.json`, one flat

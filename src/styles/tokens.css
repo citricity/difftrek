@@ -70,6 +70,20 @@
   /* The mascot at the end of the document: the navy it was drawn in. */
   --mascot: #3d5a8c;
 
+  /* The two sides of a comparison, A (original) and B (changed), wherever
+     they are told apart by colour rather than by diff red and green: the
+     landing band, and an extension's drop zones. Bare channels, so each use
+     is one alpha away: rgb(var(--side-a) / 12%). */
+  --side-a: 9 105 218;
+  --side-b: 188 76 0;
+
+  /* The landing screen's band runs from A through violet to B. Deeper than
+     the sides above so white text holds on it, and the same in both themes:
+     the band is a picture, not chrome. */
+  --band-a: 10 72 190;
+  --band-mid: 96 52 196;
+  --band-b: 226 102 38;
+
   /* Logical change lanes, kept clear of the diff greens and reds so a marker
      is never mistaken for an addition or a deletion. Six is plenty: past that
      they repeat, and the letter on the badge is what identifies a change. */
@@ -142,6 +156,9 @@
     --accent-soft: rgb(68 147 248 / 15%);
     /* Lifted, or the navy all but disappears into the dark background. */
     --mascot: #7896c8;
+
+    --side-a: 68 147 248;
+    --side-b: 240 136 62;
 
     --note-lane-0: #a371f7;
     --note-lane-1: #4493f8;

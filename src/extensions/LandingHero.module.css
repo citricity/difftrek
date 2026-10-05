@@ -1,0 +1,101 @@
+.band {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 210px;
+  padding: 48px 32px 44px;
+  overflow: hidden;
+  /* The rings are drawn beneath the text, never above it. */
+  isolation: isolate;
+  background: linear-gradient(
+    105deg,
+    rgb(var(--band-a)) 0%,
+    rgb(var(--band-mid)) 52%,
+    rgb(var(--band-b)) 100%
+  );
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 8%);
+  color: #fff;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-shadow: 0 1px 12px rgb(0 0 0 / 18%);
+}
+
+.intro {
+  max-width: 56ch;
+  margin: 0;
+  color: rgb(255 255 255 / 86%);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Wide soft rings, each set centred off one corner so its rings arc across
+   the band; where A's and B's cross they make the pattern in the middle. A
+   set is far larger than the band so a slow scale never shows its edge. */
+.rings {
+  position: absolute;
+  z-index: -1;
+  width: 220vmax;
+  height: 220vmax;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.rings.a {
+  /* Just below the band's bottom-left corner. */
+  top: calc(250px - 110vmax);
+  left: calc(10vw - 110vmax);
+  background: repeating-radial-gradient(
+    circle,
+    rgb(255 255 255 / 0%) 0 46px,
+    rgb(255 255 255 / 9%) 62px 70px,
+    rgb(255 255 255 / 0%) 86px 108px
+  );
+  animation: rings-a 36s ease-in-out infinite alternate;
+}
+
+.rings.b {
+  /* And above its top-right corner. */
+  top: calc(-40px - 110vmax);
+  right: calc(10vw - 110vmax);
+  background: repeating-radial-gradient(
+    circle,
+    rgb(0 0 0 / 0%) 0 40px,
+    rgb(0 0 0 / 10%) 56px 66px,
+    rgb(0 0 0 / 0%) 82px 100px
+  );
+  animation: rings-b 42s ease-in-out infinite alternate;
+}
+
+@keyframes rings-a {
+  to {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes rings-b {
+  to {
+    transform: scale(0.95);
+  }
+}
+
+.band[data-paused] .rings {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rings {
+    animation: none;
+  }
+}

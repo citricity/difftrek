@@ -1,11 +1,11 @@
+/* Beneath the landing band, centred in what is left of the window. */
 .screen {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  padding: 32px;
   text-align: center;
 }
 

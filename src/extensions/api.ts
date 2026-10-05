@@ -80,11 +80,25 @@ export interface LandingProps {
   mode: Mode;
 }
 
+/** What a landing screen's band says: the screen's title, and a line under it. */
+export interface LandingHeading {
+  title: string;
+  intro?: string;
+}
+
 /** A panel shown on a landing screen. */
 export interface LandingContribution {
   /** The screens it appears on. */
   modes: readonly Mode[];
   component: ComponentType<LandingProps>;
+  /**
+   * Names the screen when this is its first panel: the title and intro shown
+   * large in the band across the top. A hook, so it can translate with
+   * `useT`. Without one — or if it throws — the band keeps Diff Trek's own
+   * heading. Only the full landing screen has a band; on the empty-diff
+   * screen it is not called.
+   */
+  useHeading?: () => LandingHeading;
 }
 
 /** The React half of an extension: its default export. */
