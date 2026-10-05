@@ -146,6 +146,26 @@ export function onReloadRequested(handler: () => void): Promise<() => void> {
   return onMenuEvent('reload-requested', handler);
 }
 
+/** Which extension's application-menu item was chosen. */
+export interface ExtensionMenuItem {
+  extension: string;
+  item: string;
+}
+
+/**
+ * An extension's application-menu item was chosen in this window. The host
+ * hands each extension only its own items.
+ */
+export async function onExtensionMenuItem(
+  handler: (chosen: ExtensionMenuItem) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => undefined;
+
+  return listenHere<ExtensionMenuItem>('extension-menu-item', (event) => {
+    handler(event.payload);
+  });
+}
+
 /**
  * Another window stored new settings. Carries what was stored, so this window
  * can take it as it is — a language or wrapping change applies everywhere at

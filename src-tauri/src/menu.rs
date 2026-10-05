@@ -14,6 +14,11 @@
 //! whatever the label says. Settings is not one of them, because only the app
 //! knows what it should open, so it is a normal item that relays the click to
 //! the webview as an event; likewise installing `git dt` and the zoom items.
+//! Extensions may add items of their own to the application menu (see
+//! `difftrek_extension_api::menu`); they go after the core's app-level items
+//! and are relayed the same way, as `extension-menu-item` naming the extension
+//! and the item.
+//!
 //! Those events go to the window in front only (see `windows::menu_target`):
 //! with three windows open, ⌘, opens one Settings dialog, not three. New
 //! Window is the one item the shell answers itself, since what it makes is a
@@ -41,6 +46,18 @@ pub const SETTINGS_EVENT: &str = "settings-requested";
 /// Settings, what it opens — a confirmation — belongs to the webview.
 pub const GIT_ALIAS_ID: &str = "install-git-alias";
 pub const GIT_ALIAS_EVENT: &str = "git-alias-requested";
+
+/// Sent to the window in front when an extension's menu item is chosen, with
+/// the extension and the item, so the extension's React half can tell its own
+/// items from another's.
+pub const EXTENSION_ITEM_EVENT: &str = "extension-menu-item";
+
+/// The payload of `EXTENSION_ITEM_EVENT`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExtensionItemChosen {
+    pub extension: String,
+    pub item: String,
+}
 
 /// File > New Window: an empty window, showing the landing screen, from which
 /// an extension can open something else to compare without disturbing what
@@ -79,8 +96,9 @@ pub fn zoom_direction(id: &tauri::menu::MenuId) -> Option<&'static str> {
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn build<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
     use difftrek_extension_api::i18n::{t, tf};
+    use difftrek_extension_api::menu::app_menu_items;
     use tauri::menu::{
-        AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+        AboutMetadata, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
         WINDOW_SUBMENU_ID,
     };
 
@@ -114,28 +132,40 @@ pub fn build<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu
         None::<&str>,
     )?;
 
+    // Extensions' items, labelled in the language the menu is being built in.
+    let extension_items = app_menu_items()
+        .into_iter()
+        .map(|item| MenuItem::with_id(app, item.menu_id(), t(&item.label_key), true, None::<&str>))
+        .collect::<tauri::Result<Vec<_>>>()?;
+
+    let about_item = PredefinedMenuItem::about(app, Some(&named("menu.about")), Some(about))?;
+    let separators = (0..4)
+        .map(|_| PredefinedMenuItem::separator(app))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let services = PredefinedMenuItem::services(app, Some(&t("menu.services")))?;
+    let hide = PredefinedMenuItem::hide(app, Some(&named("menu.hide")))?;
+    let hide_others = PredefinedMenuItem::hide_others(app, Some(&t("menu.hideOthers")))?;
+    let quit = PredefinedMenuItem::quit(app, Some(&named("menu.quit")))?;
+
     // Settings straight after About and its separator, which is where macOS
     // puts it and where the muscle memory expects it. The command item follows
     // it in the same group, as VS Code's "Install 'code' command" sits with
-    // its app-level items.
-    let application = Submenu::with_items(
-        app,
-        &name,
-        true,
-        &[
-            &PredefinedMenuItem::about(app, Some(&named("menu.about")), Some(about))?,
-            &PredefinedMenuItem::separator(app)?,
-            &settings,
-            &git_alias,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::services(app, Some(&t("menu.services")))?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::hide(app, Some(&named("menu.hide")))?,
-            &PredefinedMenuItem::hide_others(app, Some(&t("menu.hideOthers")))?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some(&named("menu.quit")))?,
-        ],
-    )?;
+    // its app-level items, and extensions' items (Enter Licence…, say) follow
+    // those: they are app-level too.
+    let mut application_items: Vec<&dyn IsMenuItem<R>> =
+        vec![&about_item, &separators[0], &settings, &git_alias];
+    application_items.extend(extension_items.iter().map(|item| item as &dyn IsMenuItem<R>));
+    application_items.extend([
+        &separators[1] as &dyn IsMenuItem<R>,
+        &services,
+        &separators[2],
+        &hide,
+        &hide_others,
+        &separators[3],
+        &quit,
+    ]);
+
+    let application = Submenu::with_items(app, &name, true, &application_items)?;
 
     let new_window = MenuItem::with_id(
         app,

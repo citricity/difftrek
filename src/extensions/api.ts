@@ -73,6 +73,15 @@ export interface ExtensionHost {
    * `document.elementFromPoint`. Returns the unsubscribe.
    */
   onFileDrop(listener: (event: FileDropEvent) => void): () => void;
+  /**
+   * Subscribes to one of this extension's application-menu items, which its
+   * Rust half added with `menu::add_app_menu_item(id, item, labelKey)`. Only
+   * the window in front is told. Returns the unsubscribe.
+   *
+   * Only macOS has a menu bar, so whatever an item opens must be reachable
+   * some other way too — from a landing panel, say.
+   */
+  onMenuItem(item: string, listener: () => void): () => void;
 }
 
 export interface LandingProps {
@@ -87,11 +96,28 @@ export interface LandingContribution {
   component: ComponentType<LandingProps>;
 }
 
+export interface AppProps {
+  host: ExtensionHost;
+}
+
+/**
+ * A component mounted for as long as the window is open, whatever it shows:
+ * the place for a dialog an application-menu item opens.
+ *
+ * It outlives the document — a reload swaps the document but not this — and
+ * renders nothing of its own on screen until it chooses to, typically a
+ * native `<dialog>`.
+ */
+export interface AppContribution {
+  component: ComponentType<AppProps>;
+}
+
 /** The React half of an extension: its default export. */
 export interface Extension {
   /** Matches the folder name, `extension.json` and the Tauri plugin name. */
   id: string;
   landing?: LandingContribution;
+  app?: AppContribution;
 }
 
 /** Identity function that gives an extension's definition its type. */
