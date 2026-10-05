@@ -14,5 +14,6 @@
 
 pub mod error;
 pub mod i18n;
+pub mod menu;
 pub mod model;
 pub mod source;

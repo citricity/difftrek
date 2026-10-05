@@ -1,8 +1,8 @@
-import { Component, useMemo } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
-import { invokeExtension, onFileDrop } from '../services/backend.ts';
-import type { Extension, ExtensionHost, LandingHeading, Mode } from './api.ts';
+import type { Extension, LandingHeading, Mode } from './api.ts';
+import { ExtensionBoundary } from './ExtensionBoundary.tsx';
+import { useExtensionHost } from './host.ts';
 import { LandingHero } from './LandingHero.tsx';
 import { extensions as compiledIn, landingExtensions } from './registry.ts';
 import styles from './Landing.module.css';
@@ -90,29 +90,7 @@ function LandingPanel({
   mode: Mode;
   onReload: () => void;
 }) {
-  const host = useMemo<ExtensionHost>(
-    () => ({
-      id: extension.id,
-      invoke: <T,>(command: string, args?: Record<string, unknown>) =>
-        invokeExtension<T>(extension.id, command, args),
-      reload: onReload,
-      onFileDrop: (listener) => {
-        // The subscription resolves asynchronously; an unsubscribe that
-        // arrives first is honoured as soon as it does.
-        let unlisten: (() => void) | null = null;
-        let cancelled = false;
-        void onFileDrop(listener).then((stop) => {
-          if (cancelled) stop();
-          else unlisten = stop;
-        });
-        return () => {
-          cancelled = true;
-          unlisten?.();
-        };
-      },
-    }),
-    [extension.id, onReload],
-  );
+  const host = useExtensionHost(extension.id, onReload);
 
   const Panel = extension.landing?.component;
   if (Panel === undefined) return null;
@@ -122,40 +100,4 @@ function LandingPanel({
       <Panel host={host} mode={mode} />
     </ExtensionBoundary>
   );
-}
-
-/**
- * Keeps one extension's failure to itself.
- *
- * An extension is never load-bearing: if its panel throws while rendering, the
- * panel disappears — or makes way for the core's own, where there is one —
- * and the rest of the screen carries on. React only offers
- * this as a class component, which is the one reason there is one here.
- */
-class ExtensionBoundary extends Component<
-  {
-    id: string;
-    children: ReactNode;
-    /** Shown in its place if it fails; nothing by default. */
-    fallback?: ReactNode;
-  },
-  { failed: boolean }
-> {
-  override state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  override componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error(
-      `[difftrek] extension ${this.props.id} failed`,
-      error,
-      info.componentStack,
-    );
-  }
-
-  override render() {
-    return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
-  }
 }

@@ -57,3 +57,8 @@ export function landingExtensions(
 ): Extension[] {
   return from.filter((extension) => extension.landing?.modes.includes(mode) === true);
 }
+
+/** The extensions contributing a component mounted for the whole window. */
+export function appExtensions(from: readonly Extension[] = extensions): Extension[] {
+  return from.filter((extension) => extension.app !== undefined);
+}

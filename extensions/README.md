@@ -34,6 +34,26 @@ extensions/<id>/
   Diff Trek opens more windows than `main`, and a capability naming only
   `main` leaves the extension dead in every other one.
 
+## Menu items and dialogs
+
+An extension can add an item to the application menu, after Settings and
+Install 'git dt' Command. Its Rust half adds it while registering, before the
+menu is first built:
+
+```rust
+difftrek_extension_api::menu::add_app_menu_item("licence", "enter", "licence.menu.enter");
+```
+
+The last argument is a message key, so the label follows the interface's
+language. Choosing the item tells the window in front, and the React half hears
+it through `host.onMenuItem('enter', …)`. That is usually in an **app
+component**, `defineExtension({ app: { component } })`, which is mounted for as
+long as the window is open (a reload of the document leaves it alone) and is
+the place for the dialog the item opens.
+
+Only macOS has a menu bar. Anything an item opens must also be reachable from
+a landing panel, or Windows and Linux users will never find it.
+
 An extension is never load-bearing: a panel that throws is removed, and the
 rest of the app carries on.
 

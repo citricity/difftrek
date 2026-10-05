@@ -98,6 +98,15 @@ pub fn run() {
                 return;
             };
 
+            if let Some(item) = difftrek_extension_api::menu::app_menu_item(event.id().as_ref()) {
+                let chosen = menu::ExtensionItemChosen {
+                    extension: item.extension,
+                    item: item.item,
+                };
+                let _ = app.emit_to(&target, menu::EXTENSION_ITEM_EVENT, chosen);
+                return;
+            }
+
             if event.id() == menu::SETTINGS_ID {
                 let _ = app.emit_to(&target, menu::SETTINGS_EVENT, ());
             } else if event.id() == menu::GIT_ALIAS_ID {
