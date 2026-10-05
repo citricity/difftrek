@@ -20,6 +20,7 @@ import { RepositoryHeader } from './features/repository/RepositoryHeader.tsx';
 import { GitAliasDialog } from './features/gitAlias/GitAliasDialog.tsx';
 import { NotARepository } from './features/gitAlias/NotARepository.tsx';
 import { Landing, LandingPanels } from './extensions/Landing.tsx';
+import { ExtensionApps } from './extensions/ExtensionApps.tsx';
 import { landingExtensions } from './extensions/registry.ts';
 import { SettingsDialog } from './features/settings/SettingsDialog.tsx';
 import { useDiffNavigation } from './hooks/useDiffNavigation.ts';
@@ -109,6 +110,8 @@ export function App() {
   return (
     <I18nProvider preference={settingsState.settings.language}>
       <Session key={session} onReload={reload} settingsState={settingsState} />
+      {/* Extensions' dialogs, outside the session so a reload leaves them be. */}
+      <ExtensionApps onReload={reload} />
     </I18nProvider>
   );
 }
