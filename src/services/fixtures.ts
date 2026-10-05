@@ -415,6 +415,21 @@ let gitAlias: GitAliasStatus = {
   warning: null,
 };
 
+/**
+ * Whether the page asked for the landing screen instead of the sample diff.
+ *
+ * The landing screen is what Diff Trek shows outside a repository, and is where
+ * extensions put their panels. In the browser there is no "outside" to launch
+ * from, so `?landing` on the address stands in for it. Read on every call
+ * rather than once, so reloading after editing the address is all it takes.
+ */
+function landingRequested(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('landing')
+  );
+}
+
 function delay<T>(value: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), LATENCY_MS));
 }
@@ -425,6 +440,16 @@ async function resolveFixture(
 ): Promise<unknown> {
   switch (command) {
     case 'get_repository_info':
+      // The same error a real launch outside a repository gets, so the app
+      // takes the same path to the landing screen.
+      if (landingRequested()) {
+        await delay(null);
+        throw new AppError({
+          kind: 'notARepository',
+          message: translate('error.notARepository'),
+          detail: null,
+        });
+      }
       return delay(REPOSITORY);
 
     case 'get_changed_files':
