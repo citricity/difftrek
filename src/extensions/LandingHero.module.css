@@ -35,7 +35,9 @@
 .intro {
   max-width: 56ch;
   margin: 0;
-  color: rgb(255 255 255 / 86%);
+  /* Solid, not translucent: at 14px it needs 4.5:1 against the band's
+     orange end, and every bit of alpha costs contrast there. */
+  color: #fff;
   font-size: 14px;
   line-height: 1.5;
 }

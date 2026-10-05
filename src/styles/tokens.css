@@ -82,7 +82,9 @@
      the band is a picture, not chrome. */
   --band-a: 10 72 190;
   --band-mid: 96 52 196;
-  --band-b: 226 102 38;
+  /* Deep enough that white 14px text keeps 4.5:1 wherever the intro can
+     reach, which at the narrowest window is 88% of the way across. */
+  --band-b: 214 92 30;
 
   /* Logical change lanes, kept clear of the diff greens and reds so a marker
      is never mistaken for an addition or a deletion. Six is plenty: past that
