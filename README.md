@@ -25,6 +25,9 @@ pnpm tauri dev          # desktop app against the current repository
 
 `pnpm dev` alone runs the UI in a browser against sample data, which is handy
 for working on the interface without the desktop shell.
+Add `?landing` to the address (`http://localhost:1420/?landing`) to see the
+screen shown outside a repository instead, with any extensions' panels on it.
+Those panels' own commands have no sample data, so they answer with an error.
 
 Passing `--example` shows that same sample diff in the desktop app instead of
 reading a repository, so it opens anywhere — no Git working tree required:

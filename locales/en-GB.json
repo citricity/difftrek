@@ -205,6 +205,8 @@
   "gitAlias.screen.alongside.update.message": "It opens a different copy of Diff Trek.",
   "gitAlias.screen.alongside.install.button": "Install…",
   "gitAlias.screen.alongside.update.button": "Update…",
+  "landing.title": "Every change, one document",
+  "landing.intro": "All of a change set in one scrolling view, stepped through change by change, across every file.",
   "startup.title.notARepository": "Not a Git repository",
   "startup.title.gitUnavailable": "Git not found",
   "startup.title.emptyRepository": "Nothing to compare against",

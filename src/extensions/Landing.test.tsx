@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { defineExtension } from './api.ts';
@@ -55,14 +55,88 @@ describe('landingExtensions', () => {
 });
 
 describe('Landing', () => {
-  it('is exactly the core screen when no extension contributes', () => {
-    const { container } = render(
+  it('names the screen itself when no extension contributes', () => {
+    render(
       <Landing mode="none" onReload={() => undefined} extensions={[gitOnly]}>
         <p>Core guidance</p>
       </Landing>,
     );
 
-    expect(container.innerHTML).toBe('<p>Core guidance</p>');
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Every change, one document' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Core guidance')).toBeInTheDocument();
+  });
+
+  it('lets the first panel name the screen', () => {
+    const named = defineExtension({
+      id: 'named',
+      landing: {
+        modes: ['none'],
+        component: () => <p>Named panel</p>,
+        useHeading: () => ({ title: 'Compare things', intro: 'Pick two.' }),
+      },
+    });
+
+    render(
+      <Landing mode="none" onReload={() => undefined} extensions={[named, opener]}>
+        <p>Core guidance</p>
+      </Landing>,
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Compare things' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Pick two.')).toBeInTheDocument();
+    expect(screen.queryByText('Every change, one document')).toBeNull();
+  });
+
+  it('keeps its own heading when the first panel does not name the screen', () => {
+    const later = defineExtension({
+      id: 'later',
+      landing: {
+        modes: ['none'],
+        component: () => <p>Later panel</p>,
+        useHeading: () => ({ title: 'Not first' }),
+      },
+    });
+
+    render(
+      <Landing mode="none" onReload={() => undefined} extensions={[opener, later]}>
+        <p>Core guidance</p>
+      </Landing>,
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Every change, one document' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Not first')).toBeNull();
+  });
+
+  it('keeps its own heading, and the panel, when an extension’s heading fails', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const faulty = defineExtension({
+      id: 'faulty',
+      landing: {
+        modes: ['none'],
+        component: () => <p>Faulty panel</p>,
+        useHeading: () => {
+          throw new Error('broken on purpose');
+        },
+      },
+    });
+
+    render(
+      <Landing mode="none" onReload={() => undefined} extensions={[faulty]}>
+        <p>Core guidance</p>
+      </Landing>,
+    );
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Every change, one document' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Faulty panel')).toBeInTheDocument();
+    quiet.mockRestore();
   });
 
   it('shows a panel above the core screen, wired to its own commands', async () => {
@@ -112,5 +186,31 @@ describe('Landing', () => {
 
     expect(screen.getByTestId('empty-diff')).toHaveTextContent('Only in git');
     expect(screen.queryByRole('button', { name: /Open from/ })).toBeNull();
+  });
+});
+
+describe('the landing band', () => {
+  it('stops its rings while the window is hidden', () => {
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    render(
+      <Landing mode="none" onReload={() => undefined} extensions={[]}>
+        <p>Core guidance</p>
+      </Landing>,
+    );
+    const band = screen.getByRole('banner');
+    expect(band).not.toHaveAttribute('data-paused');
+
+    hidden.mockReturnValue(true);
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(band).toHaveAttribute('data-paused');
+
+    hidden.mockReturnValue(false);
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(band).not.toHaveAttribute('data-paused');
+    hidden.mockRestore();
   });
 });

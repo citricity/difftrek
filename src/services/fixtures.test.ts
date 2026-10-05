@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { fixtureCall } from './fixtures.ts';
 import { matchesDiff, splitLines } from './fileText.ts';
-import type { ChangedFile, FileDiff, FileText } from '../types/index.ts';
+import { AppError } from '../types/index.ts';
+import type {
+  ChangedFile,
+  FileDiff,
+  FileText,
+  RepositoryInfo,
+} from '../types/index.ts';
 
 /**
  * The sample has to behave like a real repository, or `--example` cannot
@@ -54,5 +60,32 @@ describe('the sample diff', () => {
     expect(working).not.toBeNull();
     expect(diff.hunks[0].newStart).toBeGreaterThan(1);
     expect(working?.length ?? 0).toBeGreaterThan(last.newStart + last.newLines);
+  });
+});
+
+/**
+ * The landing screen is reached by a launch outside a repository, which the
+ * browser cannot do, so `?landing` asks the sample to behave like one.
+ */
+describe('the landing screen in the browser', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('is reached with ?landing, by the error a launch outside a repository gets', async () => {
+    window.history.replaceState(null, '', '/?landing');
+
+    const thrown: unknown = await fixtureCall('get_repository_info').catch(
+      (error: unknown) => error,
+    );
+
+    expect(thrown).toBeInstanceOf(AppError);
+    expect((thrown as AppError).kind).toBe('notARepository');
+  });
+
+  it('still opens on the sample diff without it', async () => {
+    const info = await fixtureCall<RepositoryInfo>('get_repository_info');
+
+    expect(info.name).toBe('difftrek (example)');
   });
 });
